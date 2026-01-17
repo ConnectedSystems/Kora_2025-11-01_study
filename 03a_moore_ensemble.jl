@@ -74,18 +74,18 @@ function run_calibration(
     sim_year_range = create_simulation_dates(
         start_year, end_year, calib_settings.start_month
     )
-    sim_indices, ref_indices, matched_dates = find_closest_dates(
+    c_sim_indices, c_ref_indices, matched_dates = find_closest_dates(
         collect(Date.(sim_year_range)),
         Date.(reef_obs.SAMPLE_DATE);
         max_days=calib_settings.date_match_max_days
     )
 
     # Exclude specified years
-    sim_indices, ref_indices, matched_dates = exclude_years_from_indices(
-        sim_indices, ref_indices, matched_dates, reef_config.exclude_years
+    c_sim_indices, c_ref_indices, matched_dates = exclude_years_from_indices(
+        c_sim_indices, c_ref_indices, matched_dates, reef_config.exclude_years
     )
 
-    @info "Matched $(length(sim_indices)) timepoints for ensemble search"
+    @info "Matched $(length(c_sim_indices)) timepoints for ensemble search"
 
     # Check if results already exist
     ensemble_dir = joinpath(file_paths.output_dir, "ensemble")
@@ -108,7 +108,7 @@ function run_calibration(
         # Create objective function
         objective = create_objective_function(
             reef_state, env_conditions, reef_obs.MEAN_LIVE_CORAL,
-            sim_indices, ref_indices, reef_config.area,
+            c_sim_indices, c_ref_indices, reef_config.area,
             opt_config.random_seed, calib_settings.use_scalers
         )
 
@@ -209,17 +209,27 @@ function run_calibration(
 
     # Calculate performance metrics for entire time series
     cover = (CoralFlow.coral_cover(reef_state) ./ reef_config.area) * 100.0
-    sim = cover[sim_indices]
-    obs = reef_obs.MEAN_LIVE_CORAL[ref_indices]
+    sim = cover[c_sim_indices]
+    obs = reef_obs.MEAN_LIVE_CORAL[c_ref_indices]
 
-    metrics = calculate_performance_metrics(sim, obs)
+    calib_metrics = calculate_performance_metrics(sim, obs)
 
     @info "Performance Metrics:"
-    @info "  RMSE: $(round(metrics.rmse; digits=2))%"
-    @info "  Pearson: $(round(metrics.pearson; digits=3))"
-    @info "  Kendall: $(round(metrics.kendall; digits=3))"
-    @info "  Bias (β): $(round(metrics.bias; digits=3))"
-    @info "  Variability (α): $(round(metrics.variability; digits=3))"
+    @info "  RMSE: $(round(calib_metrics.rmse; digits=2))%"
+    @info "  Pearson: $(round(calib_metrics.pearson; digits=3))"
+    @info "  Kendall: $(round(calib_metrics.kendall; digits=3))"
+    @info "  Bias (β): $(round(calib_metrics.bias; digits=3))"
+    @info "  Variability (α): $(round(calib_metrics.variability; digits=3))"
+
+    # Find validation points
+    v_sim_indices, v_ref_indices, _ = find_closest_dates(
+        collect(Date.(sim_year_range)),
+        Date.(reef_obs.SAMPLE_DATE);
+        max_days=calib_settings.date_match_max_days
+    )
+
+    v_sim_idx = [s for s in v_sim_indices if s ∉ c_sim_indices]
+    v_ref_idx = [s for s in v_ref_indices if s ∉ c_ref_indices]
 
     # Generate visualizations
     @info "Generating visualizations..."
@@ -257,8 +267,9 @@ function run_calibration(
 
     # Calibration comparison plot (with ensemble if available)
     f_calib = plot_calibration_results(
-        reef_state, env_conditions, reef_obs, sim_indices, ref_indices,
-        sim_year_range, cover, reef_config.area, metrics,
+        reef_state, env_conditions, reef_obs, c_sim_indices, c_ref_indices,
+        v_sim_idx, v_ref_idx,
+        sim_year_range, cover, reef_config.area, calib_metrics,
         joinpath(
             file_paths.figure_dir, "$(reef_config.reef_id)_calibration_comparison.png"
         );
@@ -271,7 +282,7 @@ function run_calibration(
         env_conditions=env_conditions,
         results=res,
         best_params=optim_best,
-        metrics=metrics,
+        metrics=calib_metrics,
         tracked_candidates=tracked_candidates,
         tracked_fitnesses=tracked_fitnesses,
         trial_counter=trial_counter,

@@ -19,7 +19,7 @@ for reef in reefs
         region=region,
         reef=reef,
         output_dir="./$(OUTPUT_DIR)/model",
-        degree=2,
+        degree=1,
         n_bins=10
     )
 

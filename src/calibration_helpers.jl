@@ -609,36 +609,55 @@ function plot_calibration_results(
     reef_state::ReefState,
     env_conditions::YAXArray,
     reef_obs::DataFrame,
-    sim_indices::Vector{Int},
-    ref_indices::Vector{Int},
+    c_sim_indices::Vector{Int},
+    c_ref_indices::Vector{Int},
+    v_sim_indices::Vector{Int},
+    v_ref_indices::Vector{Int},
     sim_year_range,
     cover::Vector{Float64},
     area::Float32,
-    metrics::NamedTuple,
+    calib_metrics::NamedTuple,
     output_file::String;
     ensemble_res=nothing
 )
     f = Figure(; size=(1400, 1000))  # Increased height for new subplot
 
+    # Very messy, to be cleaned up later.
+    bf_obs = reef_obs.MEAN_LIVE_CORAL[v_ref_indices]
+    bf_rmse = round(
+        CoralFlow.RMSE(cover[v_sim_indices], bf_obs); digits=2
+    )
+    bf_pearson = round(
+        CoralFlow.pearson(cover[v_sim_indices], bf_obs); digits=2
+    )
+
     # Build title with metrics
     title_text =
-        "Ensemble Results\nBest Fit - RMSE: $(round(metrics.rmse; digits=2))% | " *
-        "Pearson: $(round(metrics.pearson; digits=3))"
+        "Ensemble Results\nBest Fit - RMSE: $(round(calib_metrics.rmse; digits=2))% [$(bf_rmse)%]| " *
+        "Pearson: $(round(calib_metrics.pearson; digits=3)) [$(bf_pearson)]"
 
     # Add ensemble metrics to title if available
     if !isnothing(ensemble_res)
         ensemble_cover = (ensemble_res.cover[:, 1, :] / area) * 100.0
         ensemble_mean = vec(mean(ensemble_cover; dims=2))
-        obs = reef_obs.MEAN_LIVE_CORAL[ref_indices]
+        c_obs = reef_obs.MEAN_LIVE_CORAL[c_ref_indices]
 
-        ensemble_rmse = round(
-            CoralFlow.RMSE(ensemble_mean[sim_indices], obs); digits=2
+        c_rmse = round(
+            CoralFlow.RMSE(ensemble_mean[c_sim_indices], c_obs); digits=2
         )
-        ensemble_pearson = round(
-            CoralFlow.pearson(ensemble_mean[sim_indices], obs); digits=3
+        c_pearson = round(
+            CoralFlow.pearson(ensemble_mean[c_sim_indices], c_obs); digits=2
         )
 
-        title_text *= "\nEnsemble Mean - RMSE: $(ensemble_rmse)% | Pearson: $(ensemble_pearson)"
+        v_obs = reef_obs.MEAN_LIVE_CORAL[v_ref_indices]
+        v_rmse = round(
+            CoralFlow.RMSE(ensemble_mean[v_sim_indices], v_obs); digits=2
+        )
+        v_pearson = round(
+            CoralFlow.pearson(ensemble_mean[v_sim_indices], v_obs); digits=2
+        )
+
+        title_text *= "\nEnsemble Mean - RMSE: $(c_rmse)% [$(v_rmse)%] | Pearson: $(c_pearson) [$(v_pearson)]"
     end
 
     # Timeseries panel (total cover)
@@ -646,7 +665,10 @@ function plot_calibration_results(
         f[1, 1];
         xlabel="Date",
         ylabel="Total Coral Cover [%]",
-        title=title_text
+        title=title_text,
+        titlesize=20,
+        xlabelsize=16,
+        ylabelsize=16
     )
 
     # Collect legend elements and labels
@@ -683,14 +705,15 @@ function plot_calibration_results(
         push!(legend_labels, "Ensemble Mean")
 
         scatter!(
-            ax1, sim_timeframe[sim_indices], ensemble_mean[sim_indices];
+            ax1, sim_timeframe[c_sim_indices], ensemble_mean[c_sim_indices];
             color=(:orange, 0.8),
             markersize=8
         )
     end
 
     # Observations
-    p_band = band!(
+    # draw band first so other elements are overlaid
+    band!(
         ax1,
         reef_obs.SAMPLE_DATE,
         reef_obs.LOWER,
@@ -708,8 +731,8 @@ function plot_calibration_results(
     push!(legend_labels, "Observations")
 
     scatter!(
-        ax1, reef_obs.SAMPLE_DATE[ref_indices],
-        reef_obs.MEAN_LIVE_CORAL[ref_indices];
+        ax1, reef_obs.SAMPLE_DATE[c_ref_indices],
+        reef_obs.MEAN_LIVE_CORAL[c_ref_indices];
         color=(:orange, 0.8),
         markersize=8
     )
@@ -724,7 +747,7 @@ function plot_calibration_results(
     push!(legend_labels, "Best Fit")
 
     p_matched = scatter!(
-        ax1, sim_timeframe[sim_indices], cover[sim_indices];
+        ax1, sim_timeframe[c_sim_indices], cover[c_sim_indices];
         color=(:orange, 0.8),
         markersize=8
     )
@@ -734,7 +757,7 @@ function plot_calibration_results(
     ylims!(0.0, maximum(cover) + 10.0)
 
     # Add legend to the right
-    Legend(f[1, 2], legend_elements, legend_labels)
+    Legend(f[1, 2], legend_elements, legend_labels; labelsize=16)
 
     hidexdecorations!(ax1; ticks=true, ticklabels=true, grid=false)
 
@@ -742,7 +765,10 @@ function plot_calibration_results(
     ax2 = Axis(
         f[2, 1];
         xlabel="Date",
-        ylabel="Coral Cover by Group [%]"
+        ylabel="Coral Cover by Group [%]",
+        titlesize=20,
+        xlabelsize=16,
+        ylabelsize=16
     )
 
     n_grps = n_groups(reef_state)
@@ -822,10 +848,19 @@ function plot_calibration_results(
     end
 
     # Add group legend to the right
-    Legend(f[2, 2], reverse(group_legend_elements), reverse(group_legend_labels))
+    Legend(
+        f[2, 2], reverse(group_legend_elements), reverse(group_legend_labels); labelsize=16
+    )
 
     # DHW conditions - plot with dates instead of timesteps
-    ax3 = Axis(f[3, 1]; xlabel="Date", ylabel="DHW [°C-weeks]")
+    ax3 = Axis(
+        f[3, 1];
+        xlabel="Date",
+        ylabel="DHW [°C-weeks]",
+        titlesize=20,
+        xlabelsize=16,
+        ylabelsize=16
+    )
 
     # Get DHW data and create date vector
     dhw_data = env_conditions[:, :, At(:dhw)].data
