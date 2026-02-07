@@ -18,7 +18,7 @@ for reg_scale in region_scale
             save_models=true,
             output_dir="./$(OUTPUT_DIR)",
             plot_validation=false,
-            growth_degree=2,
+            growth_degree=1,
             survival_degree=2,
             n_bins=10
         )
@@ -82,8 +82,8 @@ for reg_scale in region_scale
 
         # Analysis indicate that for specific locales, diameter is an influential factor.
         # But this may differ between locales, need to do further analyses.
-        # At regional scales, dpeth, wave activity, size at mortality, and factors relating to position
-        # matter.
+        # At regional scales, dpeth, wave activity, size at mortality, and factors relating
+        # to position matter.
         Si_surv = pawn(all_surv, convert.(Float64, all_y_surv); S=10)[PAWNᵢ=At(
             stats_of_interest
         )]

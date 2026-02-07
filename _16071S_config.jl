@@ -6,10 +6,10 @@
 reef_config = ReefConfig(;
     reef_id="16071S",
     reef_name="Moore Reef (16-071)",
-    area=Float32(1500.0 * 0.6),
-    depth=9.0,
-    density=10,
-    initial_proportions=[0.35f0, 0.3f0, 0.1f0, 0.1f0, 0.15f0],
+    area=Float32(72.0 * 4),  # size of each EcoRRAP transect/plot times # of plots
+    depth=9.0,  # Assumed average (12 + 5) / 2
+    density=15,
+    initial_proportions=[0.1f0, 0.4f0, 0.25f0, 0.05f0, 0.2f0],
     exclude_years=[2018, 2020]  # two obs after bleaching
 )
 
@@ -25,23 +25,24 @@ file_paths = CalibrationDataPaths(;
 # Optimization settings
 opt_config = OptimizationConfig(;
     max_steps=50_000,
-    population_size=75,
-    fitness_threshold=0.30,
-    ensemble_members=1000,
+    population_size=50,
+    fitness_threshold=0.3,
+    ensemble_members=100,
     trace_interval=10,
     random_seed=78
 )
 
 # Search ranges
-search_ranges = SearchRanges(;
-    density=(1.0, 10.0),
-    group_proportion=(0.0, 1.0),  # probability levels for Gamma quantiles
-    size_mean=(1.0, 5.0),
-    size_std=(0.1, 3.0),
-    scalers=(0.25, 1.75),
-    recruitment=(0.001, 0.2),
-    self_seeding=(0.001, 0.2)
-)
+# Replaced by `param_bounds` further below
+# search_ranges = SearchRanges(;
+#     density=(2.0, 12.0),
+#     group_proportion=(0.0, 1.0),  # probability levels for Gamma quantiles [0 - 1]
+#     size_mean=(0.1, 5.0),
+#     size_std=(0.1, 2.0),
+#     scalers=(0.25, 2.0),
+#     recruitment=(0.001, 0.1),
+#     self_seeding=(0.001, 0.3)
+# )
 
 # Calibration settings
 calib_settings = CalibrationSettings(;
@@ -51,28 +52,28 @@ calib_settings = CalibrationSettings(;
 )
 
 param_bounds = (;
-    density=(1.0, 10.0),
+    density=(2.0, 12.0),
 
     # Group proportions
-    prop_tab_acro=(0.001, 0.4),
-    prop_cor_acro=(0.001, 0.4),
-    prop_cor_non_acro=(0.001, 0.4),
-    prop_sm_mass=(0.001, 0.4),
-    prop_lrg_mass=(0.001, 0.4),
+    prop_tab_acro=(0.001, 0.6),
+    prop_cor_acro=(0.001, 0.6),
+    prop_cor_non_acro=(0.001, 0.6),
+    prop_sm_mass=(0.001, 0.6),
+    prop_lrg_mass=(0.001, 0.6),
 
     # Size dist mean
-    size_mean_tab_acro=(1.0, 5.0),
-    size_mean_cor_acro=(1.0, 5.0),
-    size_mean_cor_non_acro=(1.0, 5.0),
-    size_mean_sm_mass=(1.0, 5.0),
-    size_mean_lrg_mass=(1.0, 5.0),
+    size_mean_tab_acro=(0.2, 4.0),
+    size_mean_cor_acro=(0.2, 4.0),
+    size_mean_cor_non_acro=(0.2, 4.0),
+    size_mean_sm_mass=(0.2, 4.0),
+    size_mean_lrg_mass=(0.5, 5.0),
 
     # Size dist stdev
-    size_stdev_tab_acro=(0.1, 3.0),
-    size_stdev_cor_acro=(0.1, 3.0),
-    size_stdev_cor_non_acro=(0.1, 3.0),
-    size_stdev_sm_mass=(0.1, 3.0),
-    size_stdev_lrg_mass=(0.1, 3.0),
+    size_stdev_tab_acro=(0.1, 2.5),
+    size_stdev_cor_acro=(0.1, 2.5),
+    size_stdev_cor_non_acro=(0.1, 2.5),
+    size_stdev_sm_mass=(0.1, 2.5),
+    size_stdev_lrg_mass=(0.1, 2.5),
 
     # Growth scalers
     scalers_tab_acro=(0.25, 1.75),
@@ -83,5 +84,5 @@ param_bounds = (;
 
     # Recruitment
     recruitment=(0.001, 0.2),
-    self_seeding=(0.001, 0.2)
+    self_seeding=(0.001, 0.3)
 )

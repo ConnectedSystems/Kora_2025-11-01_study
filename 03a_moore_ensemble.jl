@@ -12,7 +12,7 @@ function run_calibration(
     reef_config::ReefConfig,
     file_paths::CalibrationDataPaths,
     opt_config::OptimizationConfig,
-    search_ranges::SearchRanges,
+    search_ranges::NamedTuple, # SearchRanges,
     calib_settings::CalibrationSettings
 )
     @info "Starting ensemble search for $(reef_config.reef_name) ($(reef_config.reef_id))"
@@ -74,15 +74,15 @@ function run_calibration(
     sim_year_range = create_simulation_dates(
         start_year, end_year, calib_settings.start_month
     )
-    c_sim_indices, c_ref_indices, matched_dates = find_closest_dates(
+    c_sim_indices, c_ref_indices, c_matched_dates = find_closest_dates(
         collect(Date.(sim_year_range)),
         Date.(reef_obs.SAMPLE_DATE);
         max_days=calib_settings.date_match_max_days
     )
 
     # Exclude specified years
-    c_sim_indices, c_ref_indices, matched_dates = exclude_years_from_indices(
-        c_sim_indices, c_ref_indices, matched_dates, reef_config.exclude_years
+    c_sim_indices, c_ref_indices, c_matched_dates = exclude_years_from_indices(
+        c_sim_indices, c_ref_indices, c_matched_dates, reef_config.exclude_years
     )
 
     @info "Matched $(length(c_sim_indices)) timepoints for ensemble search"
@@ -95,11 +95,18 @@ function run_calibration(
         joinpath(ensemble_dir, "$(reef_config.reef_id)_tracked_candidates.dat")
     ]
 
+    benthic_estimate = CSV.read("data/ecorrap_benthic/moore_estimate.csv", DataFrame)
+
+    year_span = year.(c_matched_dates)
+    sim_benthic_years = [year_span .∈ Ref(benthic_estimate.year)][1]
+    aligned_years = year_span[sim_benthic_years]
+    benthic_data = benthic_estimate[benthic_estimate.year .∈ aligned_years, :]
+
     opt_results = []
 
     if all(isfile.(result_files))
         @info "Loading existing ensemble results..."
-        res, optim_best, tracked_candidates, tracked_fitnesses, trial_counter = load_calibration_results(
+        res, optim_best, tracked_candidates, tracked_fitnesses, trial_contribution = load_calibration_results(
             ensemble_dir, reef_config.reef_id
         )
     else
@@ -108,7 +115,7 @@ function run_calibration(
         # Create objective function
         objective = create_objective_function(
             reef_state, env_conditions, reef_obs.MEAN_LIVE_CORAL,
-            c_sim_indices, c_ref_indices, reef_config.area,
+            c_sim_indices, c_ref_indices, reef_config.area, sim_benthic_years, benthic_data,
             opt_config.random_seed, calib_settings.use_scalers
         )
 
@@ -118,22 +125,48 @@ function run_calibration(
         )
 
         # Build search ranges
-        ranges = build_search_ranges(search_ranges, calib_settings.use_scalers)
+        # opt_ranges = build_search_ranges(search_ranges, calib_settings.use_scalers)
 
-        n_trials = 5
-        trial_contribution = zeros(Int64, n_trials)
+        # n_trials = 5
+        trial_contribution = Int64[]  # zeros(Int64, n_trials)
+        n_trials = 0
+
+        initial_guess = if isfile("./data/ensemble/16071S_initial_guess.dat")
+            deserialize("./data/ensemble/16071S_initial_guess.dat")
+        else
+            # Will error. If restarting calibration, best to temporarily comment
+            # out the `population=guess` argument.
+            # Sorry, don't have time to make this more flexible.
+            nothing
+        end
 
         # Run multiple optimizations with different starting conditions
-        for trial in 1:n_trials
-            trial_counter[] = 0  # Adds to counter within callback
+        # for trial in 1:n_trials
+        while sum(trial_contribution) < opt_config.ensemble_members
+            n_trials += 1
+            @info "Running attempt $(n_trials)"
+            @info "Progress so far: $(trial_contribution) [Total: $(sum(trial_contribution))]"
+            trial_counter[] = 0
+
+            guess = if !isnothing(initial_guess)
+                guess_subset = rand(
+                    1:size(initial_guess, 2),
+                    floor(Int64, opt_config.population_size * 0.5)
+                )
+                initial_guess[:, guess_subset]
+            else
+                nothing
+            end
 
             # Run optimization
             res = bboptimize(
                 objective;
-                SearchRange=ranges,
+                SearchRange=collect(search_ranges),
                 MaxSteps=opt_config.max_steps,
+                MaxTime=40 * 60,
+                Population=guess,
                 PopulationSize=opt_config.population_size,
-                CallbackInterval=0.1,
+                CallbackInterval=0.0,
                 CallbackFunction=callback,
                 TraceInterval=opt_config.trace_interval
             )
@@ -143,7 +176,8 @@ function run_calibration(
             if trial_counter[] == 0
                 @info "No ensemble candidates found!"
             else
-                trial_contribution[trial] = copy(trial_counter[])
+                push!(trial_contribution, trial_counter[])
+                # trial_contribution[trial] = trial_counter[]
             end
         end
 
@@ -285,7 +319,7 @@ function run_calibration(
         metrics=calib_metrics,
         tracked_candidates=tracked_candidates,
         tracked_fitnesses=tracked_fitnesses,
-        trial_counter=trial_counter,
+        trial_contribution=trial_contribution,
         ensemble_res=ensemble_res
     )
 end
@@ -295,7 +329,7 @@ mkpath(ensemble_data_dir)
 
 # Run calibration
 calibration_output = run_calibration(
-    reef_config, file_paths, opt_config, search_ranges, calib_settings
+    reef_config, file_paths, opt_config, param_bounds, calib_settings
 )
 
 output_path = joinpath(ensemble_data_dir, "$(reef_config.reef_id)_ensemble_output.dat")
@@ -303,6 +337,9 @@ serialize(output_path, calibration_output)
 
 ensemble_params = hcat(calibration_output.tracked_candidates...)
 ensemble_fitnesses = calibration_output.tracked_fitnesses
+
+# Could save found candidates to use as initial guess for later optimization runs
+serialize("./data/ensemble/16071S_initial_guess.dat", ensemble_params)
 
 n_params = size(ensemble_params, 1)
 n_cols = 5

@@ -3,16 +3,28 @@ using BlackBoxOptim
 include("common.jl")
 
 # Configuration for Far North ensemble
+
+# 15 x 100m EcoRRAP transect (1500m²), assume 60% is coral habitable area
 reef_config = ReefConfig(;
     reef_id="11-162",
     reef_name="Unknown",
-    area=Float32(72.0 * 4),  # Represent area of four EcoRRAP transects
+    area=Float32(1500.0 * 0.6),
     depth=9.0,
-    density=15,
+    density=10,
     # This initial guess is "wrong" but should be handled via the calibration process
     initial_proportions=[0.02f0, 0.18f0, 0.2f0, 0.3f0, 0.3f0],
     exclude_years=Int64[2023, 2024]  # exclude last two years for assessment
 )
+
+# file_paths = CalibrationDataPaths(;
+#     manta_tow="data/MantaTow_1985_2020.parquet",
+#     dhw_scenarios="data/dhw_scens.nc",
+#     canonical_reefs="data/rrap_canonical_2025-07-15-T10-48-29.gpkg",
+#     growth_models="data/offshore_north_growth_models.dat",
+#     survival_models="data/offshore_north_survival_models.dat",
+#     output_dir=OUTPUT_DIR,
+#     figure_dir=FIG_DIR
+# )
 
 file_paths = CalibrationDataPaths(;
     dhw_scenarios="$(OUTPUT_DIR)/dhw_scens.nc",
@@ -27,7 +39,7 @@ file_paths = CalibrationDataPaths(;
 opt_config = OptimizationConfig(;
     max_steps=25_000,
     population_size=50,
-    fitness_threshold=0.1,
+    fitness_threshold=0.05,
     ensemble_members=100,
     trace_interval=10,
     random_seed=64
@@ -35,7 +47,7 @@ opt_config = OptimizationConfig(;
 
 # Search ranges
 search_ranges = SearchRanges(;
-    density=(1.0, 15.0),
+    density=(1.0, 10.0),
     group_proportion=(0.0, 1.0),  # probability levels for Gamma quantiles
     size_mean=(1.0, 5.0),
     size_std=(0.25, 2.0),
@@ -155,7 +167,7 @@ function run_calibration(
 
     if all(isfile.(result_files))
         @info "Loading existing ensemble results..."
-        res, optim_best, tracked_candidates, tracked_fitnesses, trial_contribution = load_calibration_results(
+        res, optim_best, tracked_candidates, tracked_fitnesses, trial_counter = load_calibration_results(
             ensemble_dir, reef_config.reef_id
         )
     else
@@ -174,51 +186,22 @@ function run_calibration(
         )
 
         # Build search ranges
-        opt_ranges = build_search_ranges(search_ranges, calib_settings.use_scalers)
+        ranges = build_search_ranges(search_ranges, calib_settings.use_scalers)
 
-        trial_contribution = Int64[]  # zeros(Int64, n_trials)
-        n_trials = 0
+        n_trials = 5
+        trial_contribution = zeros(Int64, n_trials)
 
-        # n_trials = 5
-        # # Run multiple optimizations with different starting conditions
-        # for trial in 1:n_trials
-        #     trial_counter[] = 0  # Adds to counter within callback
-
-        #     # Run optimization
-        #     res = bboptimize(
-        #         objective;
-        #         SearchRange=ranges,
-        #         MaxSteps=opt_config.max_steps,
-        #         PopulationSize=opt_config.population_size,
-        #         CallbackInterval=0.1,
-        #         CallbackFunction=callback,
-        #         TraceInterval=opt_config.trace_interval
-        #     )
-
-        #     push!(opt_results, res)
-
-        #     if trial_counter[] == 0
-        #         @info "No ensemble candidates found!"
-        #     else
-        #         trial_contribution[trial] = trial_counter[]
-        #     end
-        # end
         # Run multiple optimizations with different starting conditions
-        # for trial in 1:n_trials
-        while sum(trial_contribution) < opt_config.ensemble_members
-            n_trials += 1
-            @info "Running attempt $(n_trials)"
-            @info "Progress so far: $(trial_contribution) [Total: $(sum(trial_contribution))]"
-            trial_counter[] = 0
+        for trial in 1:n_trials
+            trial_counter[] = 0  # Adds to counter within callback
 
             # Run optimization
             res = bboptimize(
                 objective;
-                SearchRange=opt_ranges,
+                SearchRange=ranges,
                 MaxSteps=opt_config.max_steps,
-                MaxTime=300,
                 PopulationSize=opt_config.population_size,
-                CallbackInterval=0.0,
+                CallbackInterval=0.1,
                 CallbackFunction=callback,
                 TraceInterval=opt_config.trace_interval
             )
@@ -228,8 +211,7 @@ function run_calibration(
             if trial_counter[] == 0
                 @info "No ensemble candidates found!"
             else
-                push!(trial_contribution, trial_counter[])
-                # trial_contribution[trial] = trial_counter[]
+                trial_contribution[trial] = trial_counter[]
             end
         end
 
@@ -371,7 +353,7 @@ function run_calibration(
         metrics=metrics,
         tracked_candidates=tracked_candidates,
         tracked_fitnesses=tracked_fitnesses,
-        trial_contribution=trial_contribution,
+        trial_counter=trial_counter,
         ensemble_res=ensemble_res
     )
 end

@@ -5,7 +5,7 @@ Exploratory sensitivity analysis for the Torres Strait region.
 include("common.jl")
 
 region_scale = ["torres_strait"]
-reef_target = ["aukane", "dungeness", "masig"]
+reef_target = [nothing, "masig"]
 
 stats_of_interest = [:mean, :median, :std]
 for reg_scale in region_scale
@@ -18,7 +18,7 @@ for reg_scale in region_scale
             save_models=true,
             output_dir="./$(OUTPUT_DIR)",
             plot_validation=false,
-            growth_degree=2,
+            growth_degree=1,
             survival_degree=2,
             n_bins=10
         )

@@ -1,7 +1,7 @@
 include("common.jl")
 
 region = "torres_strait"
-reefs = [nothing, "aukane", "dungeness", "masig"]
+reefs = [nothing, "masig"]
 region_growth = []
 region_survival = []
 for reef in reefs

@@ -65,7 +65,7 @@ if !isfile(fn_unconstrained_samples)
         UPPER=reef_df.upper
     )
 
-    start_year = Year(Date(reef_obs.SAMPLE_DATE[3])).value # start 1994
+    start_year = Year(Date(reef_obs.SAMPLE_DATE[3])).value  # start 1994
     end_year = Year(Date(reef_obs.SAMPLE_DATE[end])).value
 
     sim_year_range = create_simulation_dates(
