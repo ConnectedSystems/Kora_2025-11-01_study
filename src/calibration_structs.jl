@@ -8,7 +8,7 @@ Configuration for a specific reef being calibrated.
 - `reef_name::String`: Human-readable reef name
 - `area::Float32`: Reef area in m²
 - `depth::Float32`: Mean depth in meters
-- `density::Int`: Initial population density per m²
+- `density::Int`: Maximum population density per m²
 - `initial_proportions::Vector{Float32}`: Initial proportion of each functional group
 - `exclude_years::Vector{Int}`: Years to exclude from calibration (e.g., cyclone years)
 """

@@ -1,3 +1,5 @@
+using StatsBase
+
 """
 Determine diversity of ensemble.
 
@@ -108,4 +110,19 @@ function parameter_correlation_analysis(ensemble_params, param_names; corr_thres
     end
 
     return DataFrame(strong_correlations)
+end
+
+"""
+    standardized_pearson(sim, obs)
+
+Z-normalized Pearson correlation.
+
+Z-score normalization removes absolute scale and centers the data, so only relative patterns matter.
+"""
+function standardized_pearson(sim, obs)
+    return cor(zscore(sim), zscore(obs))
+end
+
+function log_pearson(sim, obs)
+    return cor(log.(sim), log.(obs))
 end

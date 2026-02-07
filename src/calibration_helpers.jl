@@ -209,14 +209,20 @@ function create_objective_function(
     sim_indices::Vector{Int},
     ref_indices::Vector{Int},
     area::Float32,
+    benthic_aligned_years::Union{BitVector,Nothing},
+    benthic::Union{DataFrame,Nothing},
     seed::Int,
     use_scalers::Bool
 )
-    function objective(x)
+    obs = historic_obs[ref_indices] / 100.0
+    obs_μ, obs_σ = mean_and_std(obs)
 
+    function objective(x)
         # Use Gamma distribution trick to convert candidate values to those that sum to 1.
-        x = copy(x)  # Have to take copy as values will be adjusted
-        x[2:6] = gamma_to_dirichlet(x[2:6])
+        # x = copy(x)  # Have to take copy as values will be adjusted
+        # x[2:6] = gamma_to_dirichlet(x[2:6])
+        x = vcat(x[1], gamma_to_dirichlet(x[2:6]), x[7:end])
+
         # Alternate approach: penalize invalid combinations
         # (computationally wasteful, the gamma transform is better)
         # if !(sum(x[2:6]) ≈ 1.0)
@@ -249,9 +255,7 @@ function create_objective_function(
 
         cover = CoralFlow.coral_cover(reef_state)
         cover = (cover ./ area)
-
         sims = cover[sim_indices]
-        obs = historic_obs[ref_indices] / 100.0
 
         # Error metrics
         init_mae = abs(sims[1] - obs[1])
@@ -260,14 +264,14 @@ function create_objective_function(
         rmse = CoralFlow.RMSE(sims, obs)
         pearson = 1.0 - abs(CoralFlow.pearson(sims, obs))
 
+        sim_μ, std_hat = mean_and_std(sims)
+
         # Bias metric
-        u = abs((mean(sims) / mean(obs)) - 1.0)
+        u = abs((sim_μ / obs_μ) - 1.0)
         β = u / (1 + u)
 
         # Variability ratio
-        std_obs = std(obs)
-        std_hat = std(sims)
-        _v = abs((std_hat / std_obs) - 1.0)
+        _v = abs((std_hat / obs_σ) - 1.0)
         α = (_v / (1 + _v))
 
         # Trajectory plausibility penalty
@@ -277,7 +281,31 @@ function create_objective_function(
         covers = CoralFlow.group_cover_timeseries(reef_state)
         low_cover_penalty = sum(count(covers .< 1.0; dims=1) .> 3)
 
-        return rmse + α + β + pearson + We + low_cover_penalty
+        # Alignment with benthic observations
+        rank_score = 0.0
+        if !isnothing(benthic_aligned_years)
+            benthic_sim = @view covers[sim_indices, :][benthic_aligned_years, :]
+            if any(benthic_sim .== 0.0)
+                rank_score = 2.0 * (count(benthic_sim .== 0.0))
+            else
+                # Pre-allocate vectors for correlation calculation
+                s_buffer = Vector{Float64}(undef, size(benthic_sim, 2))
+                o_buffer = Vector{Float64}(undef, size(benthic, 2) - 1)
+
+                # Assess for each year
+                for (i, r) in enumerate(eachrow(benthic))
+                    s_buffer .= @view benthic_sim[i, :]
+                    o_buffer .= collect(r[2:end])
+                    log_r = -cor(log.(s_buffer), log.(o_buffer)) + 1.0
+                    rank_score += log_r
+                end
+
+                rank_score /= nrow(benthic)  # average of years
+                rank_score *= 0.25  # place less weight on rank order
+            end
+        end
+
+        return rmse + α + β + pearson + We + low_cover_penalty + rank_score
     end
 
     return objective
@@ -292,9 +320,34 @@ function create_tracking_callback(fitness_threshold::Float64, n_members::Int64)
     tracked_candidates = CircularBuffer{Vector{Float64}}(n_members)
     tracked_fitnesses = CircularBuffer{Float64}(n_members)
     trial_counter = Ref(0)
+    candidate_progress = CircularBuffer{Int64}(10000)
 
     function callback(oc)
-        archive = oc.optimizer.population
+        # Track num_better (which will be 0 if no change)
+        push!(candidate_progress, oc.num_better)
+
+        elapsed_time = (time() - oc.start_time)
+
+        # No progress early on
+        if (30 < elapsed_time < 200) && (length(candidate_progress) >= 1000)
+            no_progress = all(candidate_progress .== candidate_progress[end])
+            if no_progress
+                BlackBoxOptim.shutdown!(oc)
+                println("Early stopping: No progress in last 1000 iterations")
+                return true
+            end
+        end
+
+        archive = try
+            oc.optimizer.population
+        catch
+            # For separable_nes method
+            (;
+                fitness=fitness.(oc.optimizer.candidates),
+                individuals=hcat(getfield.(oc.optimizer.candidates, :params)...)
+            )
+        end
+
         for (i, fitness) in enumerate(archive.fitness)
             if !(fitness < fitness_threshold)
                 continue
@@ -348,6 +401,33 @@ function create_tracking_callback(fitness_threshold::Float64, n_members::Int64)
                     )
                 end
             end
+        end
+
+        # After 20 minutes check fitness threshold or candidate count
+        n_tracked = trial_counter[]
+        if elapsed_time >= 600  # 10 minutes
+            # Check for progress and quit if stuck in local optima
+            no_progress = all(candidate_progress .== candidate_progress[end])
+            if no_progress
+                BlackBoxOptim.shutdown!(oc)
+                return true
+            end
+
+            # Otherwise check average fitness
+            avg_fitness = mean(oc.optimizer.population.fitness)
+            if avg_fitness < 0.15
+                println(
+                    "Stopping: Average fitness ($(round(avg_fitness, digits=4))) below threshold"
+                )
+                BlackBoxOptim.shutdown!(oc)
+                return true
+            end
+        end
+
+        if n_tracked >= 20
+            println("Stopping: Found $(n_tracked) candidate solutions")
+            BlackBoxOptim.shutdown!(oc)
+            return true
         end
 
         return false
@@ -558,7 +638,7 @@ function load_calibration_results(output_dir::String, reef_id::String)
     tracked_data = (;
         candidates=tmp.tracked_candidates,
         fitnesses=tmp.tracked_fitnesses,
-        trial_counter=tmp.trial_counter,
+        trial_contribution=tmp.trial_contribution,
         n_tracked=length(tmp.tracked_fitnesses)
     )
 
@@ -566,7 +646,7 @@ function load_calibration_results(output_dir::String, reef_id::String)
 
     return res,
     optim_best, tracked_data.candidates, tracked_data.fitnesses,
-    tracked_data.trial_counter
+    tracked_data.trial_contribution
 end
 
 """
@@ -632,9 +712,7 @@ function plot_calibration_results(
     )
 
     # Build title with metrics
-    title_text =
-        "Ensemble Results\nBest Fit - RMSE: $(round(calib_metrics.rmse; digits=2))% [$(bf_rmse)%]| " *
-        "Pearson: $(round(calib_metrics.pearson; digits=3)) [$(bf_pearson)]"
+    title_text = "Ensemble Results\nBest Fit - RMSE: $(round(calib_metrics.rmse; digits=2))% [$(bf_rmse)%]"
 
     # Add ensemble metrics to title if available
     if !isnothing(ensemble_res)
@@ -657,7 +735,7 @@ function plot_calibration_results(
             CoralFlow.pearson(ensemble_mean[v_sim_indices], v_obs); digits=2
         )
 
-        title_text *= "\nEnsemble Mean - RMSE: $(c_rmse)% [$(v_rmse)%] | Pearson: $(c_pearson) [$(v_pearson)]"
+        title_text *= "\nEnsemble Mean - RMSE: $(c_rmse)% [$(v_rmse)%]"
     end
 
     # Timeseries panel (total cover)
@@ -789,7 +867,7 @@ function plot_calibration_results(
     FGROUP_COLOR = Makie.distinguishable_colors(8)[3:end]
     FLABELS = [
         "Tabular Acropora", "Corymbose Acropora",
-        "Corymbose non-Acropora", "Small massives", "Large massives"
+        "branching non-Acropora", "Small massives", "Large massives"
     ]
 
     # Plot group trajectories with confidence intervals if ensemble available
