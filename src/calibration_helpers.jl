@@ -217,10 +217,11 @@ function create_objective_function(
     obs = historic_obs[ref_indices] / 100.0
     obs_μ, obs_σ = mean_and_std(obs)
 
+    rng = Random.seed!(seed)
+
     function objective(x)
         # Use Gamma distribution trick to convert candidate values to those that sum to 1.
-        # x = copy(x)  # Have to take copy as values will be adjusted
-        # x[2:6] = gamma_to_dirichlet(x[2:6])
+        # A copy is necessary as values will be adjusted
         x = vcat(x[1], gamma_to_dirichlet(x[2:6]), x[7:end])
 
         # Alternate approach: penalize invalid combinations
@@ -230,8 +231,6 @@ function create_objective_function(
         # end
 
         CoralFlow.set_population!(reef_state, x)
-
-        rng = Random.seed!(seed)
 
         if use_scalers
             n_grps = CoralFlow.n_groups(reef_state)
@@ -254,7 +253,7 @@ function create_objective_function(
         end
 
         cover = CoralFlow.coral_cover(reef_state)
-        cover = (cover ./ area)
+        cover ./= area
         sims = cover[sim_indices]
 
         # Error metrics
@@ -285,6 +284,7 @@ function create_objective_function(
         rank_score = 0.0
         if !isnothing(benthic_aligned_years)
             benthic_sim = @view covers[sim_indices, :][benthic_aligned_years, :]
+
             if any(benthic_sim .== 0.0)
                 rank_score = 2.0 * (count(benthic_sim .== 0.0))
             else
@@ -696,23 +696,46 @@ function plot_calibration_results(
     sim_year_range,
     cover::Vector{Float64},
     area::Float32,
-    calib_metrics::NamedTuple,
+    ecorrap_obs::DataFrame,
     output_file::String;
     ensemble_res=nothing
 )
     f = Figure(; size=(1400, 1000))  # Increased height for new subplot
 
+    n_grps = n_groups(reef_state)
+    n_ts = n_timesteps(reef_state)
+
+    # Calculate group cover for best fit
+    group_cover_best = zeros(Float32, n_ts, n_grps)
+    for ts in 1:n_ts, grp in 1:n_grps
+        pop = coral_population(reef_state, ts, 1, grp)  # loc=1
+        group_cover_best[ts, grp] = sum(cover_cm_to_m2.(pop))
+    end
+    group_cover_best = (group_cover_best / area) * 100.0
+
     # Very messy, to be cleaned up later.
-    bf_obs = reef_obs.MEAN_LIVE_CORAL[v_ref_indices]
-    bf_rmse = round(
-        CoralFlow.RMSE(cover[v_sim_indices], bf_obs); digits=2
-    )
-    bf_pearson = round(
-        CoralFlow.pearson(cover[v_sim_indices], bf_obs); digits=2
+    ecorrap_overlap_idx = indexin(ecorrap_obs.year, year.(sim_year_range))
+    v_ecorrap = ecorrap_overlap_idx .∉ Ref(c_sim_indices)
+    c_ecorrap = .!v_ecorrap
+
+    # Get log pearson score of benthic observations (for one year in this case)
+    v_bf_r_log = []
+    v_ecorrap_obs = ecorrap_obs[v_ecorrap, :]
+    for (i, r) in enumerate(eachrow(v_ecorrap_obs))
+        _r = collect(values(r[2:end]))
+
+        v = vec(log.(group_cover_best[ecorrap_overlap_idx[v_ecorrap][i], :]'))
+        push!(v_bf_r_log, cor(log.(_r), v))
+    end
+    v_bf_pearson = round(mean(v_bf_r_log); digits=2)
+
+    c_bf_obs = reef_obs.MEAN_LIVE_CORAL[c_ref_indices]
+    c_bf_rmse = round(
+        CoralFlow.RMSE(cover[c_sim_indices], c_bf_obs); digits=2
     )
 
     # Build title with metrics
-    title_text = "Ensemble Results\nBest Fit - RMSE: $(round(calib_metrics.rmse; digits=2))% [$(bf_rmse)%]"
+    title_text = "Ensemble Results\nBest Fit - RMSE: $(c_bf_rmse)% [log(r): $(v_bf_pearson)]"
 
     # Add ensemble metrics to title if available
     if !isnothing(ensemble_res)
@@ -727,15 +750,28 @@ function plot_calibration_results(
             CoralFlow.pearson(ensemble_mean[c_sim_indices], c_obs); digits=2
         )
 
-        v_obs = reef_obs.MEAN_LIVE_CORAL[v_ref_indices]
-        v_rmse = round(
-            CoralFlow.RMSE(ensemble_mean[v_sim_indices], v_obs); digits=2
-        )
-        v_pearson = round(
-            CoralFlow.pearson(ensemble_mean[v_sim_indices], v_obs); digits=2
-        )
+        v_aligned = ecorrap_overlap_idx[v_ecorrap]
+        v_ecorrap_obs = ecorrap_obs[v_ecorrap, :]
 
-        title_text *= "\nEnsemble Mean - RMSE: $(c_rmse)% [$(v_rmse)%]"
+        v_subset = ensemble_res.group_cover[v_aligned, 1, :, :]
+
+        # Main.@infiltrate
+        v_r_log = []
+        for (i, r) in enumerate(eachrow(v_ecorrap_obs))
+            _r = collect(values(r[2:end]))
+
+            for a in axes(v_subset, 3)
+                push!(v_r_log, cor(log.(_r), log.(v_subset[i, :, a])))
+            end
+        end
+
+        mean_r_log = round(mean(v_r_log); digits=2)
+
+        # v_obs = reef_obs.MEAN_LIVE_CORAL[v_ref_indices]
+        # v_log_pearson = round(
+        #     CoralFlow.pearson(log.(ensemble_mean[v_sim_indices]), log.(v_obs)); digits=2
+        # )
+        title_text *= "\nEnsemble Mean - RMSE: $(c_rmse)% [log(r): $(mean_r_log)]"
     end
 
     # Timeseries panel (total cover)
@@ -753,8 +789,14 @@ function plot_calibration_results(
     legend_elements = []
     legend_labels = String[]
 
-    # sim_timeframe = Date.(sim_year_range)
     sim_timeframe = Dates.year.(Date.(sim_year_range))
+
+    # High validation years
+    # min_x, max_x = extrema(ensemble_params[p, :])
+    # buffer = abs(-(extrema(ensemble_params[p, :])...)) * 0.1
+    # min_x, max_x = min_x - buffer, max_x + buffer
+    # min_y, max_y = median_fitness, maximum(ensemble_fitnesses) + 0.1
+    # background_rect = Rect2f(min_x, min_y, max_x - min_x, max_y - min_y)
 
     # Plot ensemble trajectories if available (in background)
     if !isnothing(ensemble_res)
@@ -848,17 +890,6 @@ function plot_calibration_results(
         xlabelsize=16,
         ylabelsize=16
     )
-
-    n_grps = n_groups(reef_state)
-    n_ts = n_timesteps(reef_state)
-
-    # Calculate group cover for best fit
-    group_cover_best = zeros(Float32, n_ts, n_grps)
-    for ts in 1:n_ts, grp in 1:n_grps
-        pop = coral_population(reef_state, ts, 1, grp)  # loc=1
-        group_cover_best[ts, grp] = sum(cover_cm_to_m2.(pop))
-    end
-    group_cover_best = (group_cover_best / area) * 100.0
 
     # Collect group legend elements and labels
     group_legend_elements = []

@@ -6,7 +6,7 @@ include("_16071S_config.jl")
 """
     run_calibration(reef_config, file_paths, opt_config, search_ranges, calib_settings)
 
-Run complete ensemble workflow for a reef.
+Run complete ensemble workflow for a specific reef.
 """
 function run_calibration(
     reef_config::ReefConfig,
@@ -30,14 +30,18 @@ function run_calibration(
     )
 
     @info "Loading environmental data..."
-    reef_uid = get_reef_uid(file_paths.canonical_reefs, reef_config.reef_id)
+    # reef_uid = get_reef_uid(file_paths.canonical_reefs, reef_config.reef_id)
 
-    start_year = Year(Date(reef_obs.SAMPLE_DATE[3])).value # start 1994
-    end_year = Year(Date(reef_obs.SAMPLE_DATE[end])).value
+    ltmp_start_year = Year(Date(reef_obs.SAMPLE_DATE[3])).value  # start 1994
+    ltmp_end_year = Year(Date(reef_obs.SAMPLE_DATE[end])).value
 
-    historic_dhw = load_historical_dhw(
-        file_paths.dhw_scenarios, reef_uid, start_year, end_year
-    )
+    benthic_estimate = CSV.read("$(OUTPUT_DIR)/ecorrap_benthic/moore_estimate.csv", DataFrame)
+
+    sim_start_year = ltmp_start_year
+    sim_end_year = benthic_estimate.year[end]
+
+    historic_dhw = CSV.read("$(OUTPUT_DIR)/dhw/DHW_Moore_Reef.csv", DataFrame)
+    historic_dhw = historic_dhw[historic_dhw.year .∈ Ref(sim_start_year:sim_end_year), "dhw"]
 
     # Load models
     @info "Loading growth and survival models..."
@@ -72,7 +76,7 @@ function run_calibration(
     # Match simulation dates with observations
     @info "Matching simulation dates with observations..."
     sim_year_range = create_simulation_dates(
-        start_year, end_year, calib_settings.start_month
+        sim_start_year, sim_end_year, calib_settings.start_month
     )
     c_sim_indices, c_ref_indices, c_matched_dates = find_closest_dates(
         collect(Date.(sim_year_range)),
@@ -95,8 +99,7 @@ function run_calibration(
         joinpath(ensemble_dir, "$(reef_config.reef_id)_tracked_candidates.dat")
     ]
 
-    benthic_estimate = CSV.read("data/ecorrap_benthic/moore_estimate.csv", DataFrame)
-
+    # Get benthic data used for calibration
     year_span = year.(c_matched_dates)
     sim_benthic_years = [year_span .∈ Ref(benthic_estimate.year)][1]
     aligned_years = year_span[sim_benthic_years]
@@ -164,7 +167,7 @@ function run_calibration(
                 SearchRange=collect(search_ranges),
                 MaxSteps=opt_config.max_steps,
                 MaxTime=40 * 60,
-                Population=guess,
+                Population=guess,  # comment this line out if starting fresh
                 PopulationSize=opt_config.population_size,
                 CallbackInterval=0.0,
                 CallbackFunction=callback,
@@ -231,14 +234,14 @@ function run_calibration(
             end
         end
 
-        CoralFlow.run_example!(
+        CoralFlow.run_model!(
             reef_state, env_conditions;
             recruits=Float32(recruitment_proportion),
             self_seed=Float32(self_seeding_proportion),
             rng=rng
         )
     else
-        CoralFlow.run_example!(reef_state, env_conditions; rng=rng)
+        CoralFlow.run_model!(reef_state, env_conditions; rng=rng)
     end
 
     # Calculate performance metrics for entire time series
@@ -303,7 +306,7 @@ function run_calibration(
     f_calib = plot_calibration_results(
         reef_state, env_conditions, reef_obs, c_sim_indices, c_ref_indices,
         v_sim_idx, v_ref_idx,
-        sim_year_range, cover, reef_config.area, calib_metrics,
+        sim_year_range, cover, reef_config.area, benthic_estimate,
         joinpath(
             file_paths.figure_dir, "$(reef_config.reef_id)_calibration_comparison.png"
         );
