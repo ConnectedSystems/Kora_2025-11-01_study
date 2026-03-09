@@ -8,7 +8,7 @@ reef_config = ReefConfig(;
     reef_name="Moore Reef (16-071)",
     area=Float32(72.0 * 4),  # size of each EcoRRAP transect/plot times # of plots
     depth=9.0,  # Assumed average (12 + 5) / 2
-    density=15,
+    density=10,
     initial_proportions=[0.1f0, 0.4f0, 0.25f0, 0.05f0, 0.2f0],
     exclude_years=[2018, 2020, 2022, 2023]  # two obs after bleaching and two years of ecorrap
 )
@@ -26,8 +26,8 @@ file_paths = CalibrationDataPaths(;
 opt_config = OptimizationConfig(;
     max_steps=50_000,
     population_size=50,
-    fitness_threshold=0.3,
-    ensemble_members=100,
+    fitness_threshold=0.4,
+    ensemble_members=250,
     trace_interval=10,
     random_seed=78
 )
