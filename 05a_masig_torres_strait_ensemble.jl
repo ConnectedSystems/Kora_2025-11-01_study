@@ -6,25 +6,15 @@ include("common.jl")
 
 # 15 x 100m EcoRRAP transect (1500m²), assume 60% is coral habitable area
 reef_config = ReefConfig(;
-    reef_id="11-162",
-    reef_name="Unknown",
-    area=Float32(1500.0 * 0.6),
+    reef_id="masig",
+    reef_name="Masig Reef",
+    area=Float32(72.0 * 4),
     depth=9.0,
     density=10,
     # This initial guess is "wrong" but should be handled via the calibration process
     initial_proportions=[0.02f0, 0.18f0, 0.2f0, 0.3f0, 0.3f0],
     exclude_years=Int64[2023, 2024]  # exclude last two years for assessment
 )
-
-# file_paths = CalibrationDataPaths(;
-#     manta_tow="data/MantaTow_1985_2020.parquet",
-#     dhw_scenarios="data/dhw_scens.nc",
-#     canonical_reefs="data/rrap_canonical_2025-07-15-T10-48-29.gpkg",
-#     growth_models="data/offshore_north_growth_models.dat",
-#     survival_models="data/offshore_north_survival_models.dat",
-#     output_dir=OUTPUT_DIR,
-#     figure_dir=FIG_DIR
-# )
 
 file_paths = CalibrationDataPaths(;
     dhw_scenarios="$(OUTPUT_DIR)/dhw_scens.nc",
@@ -37,10 +27,10 @@ file_paths = CalibrationDataPaths(;
 
 # Optimization settings
 opt_config = OptimizationConfig(;
-    max_steps=25_000,
+    max_steps=50_000,
     population_size=50,
-    fitness_threshold=0.05,
-    ensemble_members=100,
+    fitness_threshold=0.03,
+    ensemble_members=250,
     trace_interval=10,
     random_seed=64
 )
@@ -81,9 +71,8 @@ function run_calibration(
 
     # Load data
     @info "Loading reef observations..."
-    reef_df = CSV.read(
-        "data/Reef 11-162_Benthic_line_chart_modelled_2025-12-22.csv", DataFrame
-    )
+
+    reef_df = CSV.read(joinpath("./data", "Masig_Reef_EcoRRAP_estimate.csv"), DataFrame)
     reef_obs = DataFrame(;
         SAMPLE_DATE=reef_df.report_year,
         MEAN_LIVE_CORAL=reef_df.mean,
@@ -91,23 +80,13 @@ function run_calibration(
         UPPER=reef_df.upper
     )
 
-    start_year = Year(Date(reef_obs.SAMPLE_DATE[1])).value
-    end_year = Year(Date(reef_obs.SAMPLE_DATE[end])).value - 1
-
-    reef_obs = reef_obs[1:(end - 1), :]
+    benthic_estimate = CSV.read("$(OUTPUT_DIR)/ecorrap_benthic/masig_estimate.csv", DataFrame)
+    sim_start_year = benthic_estimate.year[1]
+    sim_end_year = benthic_estimate.year[end]
 
     @info "Loading environmental data..."
-    reef_uid = "11162100104"
-    ds = open_dataset(file_paths.dhw_scenarios)
-    historic_dhw = vec(
-        NetCDF.read(
-            ds.dhw_scens[
-                locs=At(reef_uid),
-                scenarios=1,
-                timesteps=At(start_year, end_year)
-            ]
-        )
-    )
+    historic_dhw = CSV.read("$(OUTPUT_DIR)/dhw/DHW_Masig_Reef.csv", DataFrame)
+    historic_dhw = historic_dhw[historic_dhw.year .∈ Ref(sim_start_year:sim_end_year), "dhw"]
 
     # Load models
     @info "Loading growth and survival models..."
@@ -140,7 +119,7 @@ function run_calibration(
     # Match simulation dates with observations
     @info "Matching simulation dates with observations..."
     sim_year_range = create_simulation_dates(
-        start_year, end_year, calib_settings.start_month
+        sim_start_year, sim_end_year, calib_settings.start_month
     )
     c_sim_indices, c_ref_indices, matched_dates = find_closest_dates(
         collect(Date.(sim_year_range)),
@@ -334,10 +313,19 @@ function run_calibration(
     end
 
     # Calibration comparison plot (with ensemble if available)
+    # f_calib = plot_calibration_results(
+    #     reef_state, env_conditions, reef_obs, c_sim_indices, c_ref_indices,
+    #     v_sim_idx, v_ref_idx,
+    #     sim_year_range, cover, reef_config.area, metrics,
+    #     joinpath(
+    #         file_paths.figure_dir, "$(reef_config.reef_id)_calibration_comparison.png"
+    #     );
+    #     ensemble_res=ensemble_res
+    # )
+
     f_calib = plot_calibration_results(
         reef_state, env_conditions, reef_obs, c_sim_indices, c_ref_indices,
-        v_sim_idx, v_ref_idx,
-        sim_year_range, cover, reef_config.area, metrics,
+        sim_year_range, cover, reef_config.area, benthic_estimate,
         joinpath(
             file_paths.figure_dir, "$(reef_config.reef_id)_calibration_comparison.png"
         );
@@ -437,26 +425,3 @@ end
 Label(f[:, 0], "Metric Score"; rotation=π / 2, fontsize=18)
 
 save("$(FIG_DIR)/$(reef_config.reef_id)_calib_param_interactions.png", f; px_per_unit=DPI)
-
-reef_df = CSV.read(
-    "data/Reef 11-162_Benthic_line_chart_modelled_2025-12-22.csv", DataFrame
-)
-reef_obs = DataFrame(;
-    SAMPLE_DATE=reef_df.report_year,
-    MEAN_LIVE_CORAL=reef_df.mean,
-    LOWER=reef_df.lower,
-    UPPER=reef_df.upper
-)
-
-area = calibration_output.reef_state.carrying_capacity[1]
-obs = reef_obs.MEAN_LIVE_CORAL[4:5]
-
-ensemble_projection = (calibration_output.ensemble_res.cover[4:5, 1, :] / area) * 100.0
-
-# 95% CI of projections
-@info "95% CI" quantile(abs.(ensemble_projection .- obs), [0.025, 0.975])
-
-@info "Absolute max:" maximum(abs.(ensemble_projection .- obs))
-
-@info "Maximum:" maximum(ensemble_projection .- obs)
-@info "Minimum:" minimum(ensemble_projection .- obs)
