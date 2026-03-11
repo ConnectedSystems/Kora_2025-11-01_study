@@ -1,6 +1,8 @@
 import CoralFlow: ReefState
 import DataStructures: CircularBuffer, capacity
 
+using LaTeXStrings
+
 """
     load_reef_observations(parquet_file, reef_id)
 
@@ -241,7 +243,7 @@ function create_objective_function(
             recruitment_proportion = x[end - 1]
             self_seeding_proportion = x[end]
 
-            CoralFlow.run_example!(
+            CoralFlow.run_model!(
                 reef_state,
                 env_conditions;
                 recruits=Float32(recruitment_proportion),
@@ -249,7 +251,7 @@ function create_objective_function(
                 rng=rng
             )
         else
-            CoralFlow.run_example!(reef_state, env_conditions; rng=rng)
+            CoralFlow.run_model!(reef_state, env_conditions; rng=rng)
         end
 
         cover = CoralFlow.coral_cover(reef_state)
@@ -260,7 +262,7 @@ function create_objective_function(
         init_mae = abs(sims[1] - obs[1])
         end_mae = abs(sims[end] - obs[end])
         We = (init_mae + end_mae)
-        rmse = CoralFlow.RMSE(sims, obs)
+        # rmse = CoralFlow.RMSE(sims, obs)
         pearson = 1.0 - abs(CoralFlow.pearson(sims, obs))
 
         sim_μ, std_hat = mean_and_std(sims)
@@ -292,7 +294,7 @@ function create_objective_function(
                 s_buffer = Vector{Float64}(undef, size(benthic_sim, 2))
                 o_buffer = Vector{Float64}(undef, size(benthic, 2) - 1)
 
-                # Assess for each year
+                # Assess for each year where benthic obs are available
                 for (i, r) in enumerate(eachrow(benthic))
                     s_buffer .= @view benthic_sim[i, :]
                     o_buffer .= collect(r[2:end])
@@ -301,11 +303,11 @@ function create_objective_function(
                 end
 
                 rank_score /= nrow(benthic)  # average of years
-                rank_score *= 0.25  # place less weight on rank order
+                # rank_score *= 0.25  # place less weight on rank order
             end
         end
 
-        return rmse + α + β + pearson + We + low_cover_penalty + rank_score
+        return (α + β + pearson) + We + low_cover_penalty + rank_score
     end
 
     return objective
@@ -691,8 +693,6 @@ function plot_calibration_results(
     reef_obs::DataFrame,
     c_sim_indices::Vector{Int},
     c_ref_indices::Vector{Int},
-    v_sim_indices::Vector{Int},
-    v_ref_indices::Vector{Int},
     sim_year_range,
     cover::Vector{Float64},
     area::Float32,
@@ -724,7 +724,8 @@ function plot_calibration_results(
     for (i, r) in enumerate(eachrow(v_ecorrap_obs))
         _r = collect(values(r[2:end]))
 
-        v = vec(log.(group_cover_best[ecorrap_overlap_idx[v_ecorrap][i], :]'))
+        # Add small constant to handle any potential zero values
+        v = vec(log.(group_cover_best[ecorrap_overlap_idx[v_ecorrap][i], :]')) .+ 1e-06
         push!(v_bf_r_log, cor(log.(_r), v))
     end
     v_bf_pearson = round(mean(v_bf_r_log); digits=2)
@@ -735,7 +736,8 @@ function plot_calibration_results(
     )
 
     # Build title with metrics
-    title_text = "Ensemble Results\nBest Fit - RMSE: $(c_bf_rmse)% [log(r): $(v_bf_pearson)]"
+    # title_text = "Ensemble Results\nBest Fit - RMSE: $(c_bf_rmse) [" * L"\rho_{\mathrm{log}})" * ": $(v_bf_pearson)]"
+    # title_text = latexstring("Ensemble Results\n \$1 + \\alpha^2\$")
 
     # Add ensemble metrics to title if available
     if !isnothing(ensemble_res)
@@ -753,9 +755,8 @@ function plot_calibration_results(
         v_aligned = ecorrap_overlap_idx[v_ecorrap]
         v_ecorrap_obs = ecorrap_obs[v_ecorrap, :]
 
-        v_subset = ensemble_res.group_cover[v_aligned, 1, :, :]
+        v_subset = ensemble_res.group_cover[v_aligned, 1, :, :] .+ 1e-06
 
-        # Main.@infiltrate
         v_r_log = []
         for (i, r) in enumerate(eachrow(v_ecorrap_obs))
             _r = collect(values(r[2:end]))
