@@ -772,7 +772,17 @@ function plot_calibration_results(
         # v_log_pearson = round(
         #     CoralFlow.pearson(log.(ensemble_mean[v_sim_indices]), log.(v_obs)); digits=2
         # )
-        title_text *= "\nEnsemble Mean - RMSE: $(c_rmse)% [log(r): $(mean_r_log)]"
+
+        title_text = L"""
+        Ensemble Results \\
+        Best Fit - RMSE: %$(c_bf_rmse) [$\rho_{\mathrm{log}}$: %$(v_bf_pearson)] \\
+        Ensemble Mean - RMSE: %$(c_rmse) [$\rho_{\mathrm{log}}$: %$(mean_r_log)]
+        """
+    else
+        title_text = L"""
+        Ensemble Results \\
+        Best Fit - RMSE: %$(c_bf_rmse) [$\rho_{\mathrm{log}}$: %$(v_bf_pearson)]
+        """
     end
 
     # Timeseries panel (total cover)
