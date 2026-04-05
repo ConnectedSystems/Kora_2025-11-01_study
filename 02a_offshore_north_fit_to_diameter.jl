@@ -11,7 +11,7 @@ for reef in reefs
     else
         tgt_dir = reef
     end
-    mkpath("./figs/$(region)/$(tgt_dir)")
+    mkpath("./figs/regressions/$(region)/$(tgt_dir)")
 
     growth_results = CoralFlow.process_growth_models(
         "../data/ecorrap_adult_juv_combined_2021_2023_24062025.csv",
@@ -39,12 +39,12 @@ for reef in reefs
     CoralFlow.viz.survival_performance_plots(
         survival_results.survival_groupings,
         survival_results.survival_fits;
-        save_path="./figs/$(region)/$(tgt_dir)"
+        save_path="./figs/regressions/$(region)/$(tgt_dir)"
     )
 
     CoralFlow.viz.growth_performance_plots(
         growth_results.growth_groupings,
         growth_results.growth_fits;
-        save_path="./figs/$(region)/$(tgt_dir)"
+        save_path="./figs/regressions/$(region)/$(tgt_dir)"
     )
 end
