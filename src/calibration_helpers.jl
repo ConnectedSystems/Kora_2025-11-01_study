@@ -314,6 +314,47 @@ function create_objective_function(
 end
 
 """
+    create_objective_pool(reef_state, env_conditions, historic_obs, sim_indices,
+                          ref_indices, area, benthic_aligned_years, benthic,
+                          seed, use_scalers; n_threads=Threads.nthreads())
+
+Create a pool of objective functions for parallel sensitivity analysis, one per
+thread. Each entry is an independent `create_objective_function` closure with its
+own `deepcopy` of `reef_state` and a unique seed offset, making the pool safe for
+use with `Threads.@threads`.
+
+# Arguments
+All arguments are forwarded to `create_objective_function`. `seed` is used as a
+base; thread `i` (0-indexed) receives `seed + i`.
+
+# Returns
+`Vector` of length `n_threads`, indexed by `Threads.threadid()`.
+"""
+function create_objective_pool(
+    reef_state::ReefState,
+    env_conditions::YAXArray,
+    historic_obs::Vector{Float64},
+    sim_indices::Vector{Int},
+    ref_indices::Vector{Int},
+    area::Float32,
+    benthic_aligned_years::Union{BitVector,Nothing},
+    benthic::Union{DataFrame,Nothing},
+    seed::Int,
+    use_scalers::Bool;
+    n_threads::Int=Threads.nthreads()
+)
+    return [
+        create_objective_function(
+            copy(reef_state), env_conditions, historic_obs,
+            sim_indices, ref_indices, area,
+            benthic_aligned_years, benthic,
+            seed + i, use_scalers
+        )
+        for i in 0:(n_threads - 1)
+    ]
+end
+
+"""
     create_tracking_callback(fitness_threshold)
 
 Create callback function to track good optimization candidates.
@@ -698,6 +739,8 @@ function plot_calibration_results(
     area::Float32,
     ecorrap_obs::DataFrame,
     output_file::String;
+    v_sim_indices=nothing,
+    v_ref_indices=nothing,
     ensemble_res=nothing
 )
     f = Figure(; size=(1400, 1000))  # Increased height for new subplot
@@ -735,11 +778,15 @@ function plot_calibration_results(
         CoralFlow.RMSE(cover[c_sim_indices], c_bf_obs); digits=2
     )
 
-    # Build title with metrics
-    # title_text = "Ensemble Results\nBest Fit - RMSE: $(c_bf_rmse) [" * L"\rho_{\mathrm{log}})" * ": $(v_bf_pearson)]"
-    # title_text = latexstring("Ensemble Results\n \$1 + \\alpha^2\$")
+    # Compute validation RMSE for best fit (post-disturbance manta tow years)
+    v_bf_val_rmse = nothing
+    if !isnothing(v_sim_indices) && !isempty(v_sim_indices)
+        v_bf_obs_val = reef_obs.MEAN_LIVE_CORAL[v_ref_indices]
+        v_bf_val_rmse = round(CoralFlow.RMSE(cover[v_sim_indices], v_bf_obs_val); digits=2)
+    end
 
-    # Add ensemble metrics to title if available
+    # Compute ensemble metrics and build annotation string
+    sim_timeframe = Dates.year.(Date.(sim_year_range))
     if !isnothing(ensemble_res)
         ensemble_cover = (ensemble_res.cover[:, 1, :] / area) * 100.0
         ensemble_mean = vec(mean(ensemble_cover; dims=2))
@@ -768,21 +815,24 @@ function plot_calibration_results(
 
         mean_r_log = round(mean(v_r_log); digits=2)
 
-        # v_obs = reef_obs.MEAN_LIVE_CORAL[v_ref_indices]
-        # v_log_pearson = round(
-        #     CoralFlow.pearson(log.(ensemble_mean[v_sim_indices]), log.(v_obs)); digits=2
-        # )
+        # Ensemble validation RMSE (post-disturbance manta tow years)
+        v_ens_val_rmse = nothing
+        if !isnothing(v_sim_indices) && !isempty(v_sim_indices)
+            v_ens_obs_val = reef_obs.MEAN_LIVE_CORAL[v_ref_indices]
+            v_ens_val_rmse = round(
+                CoralFlow.RMSE(ensemble_mean[v_sim_indices], v_ens_obs_val); digits=2
+            )
+        end
 
-        title_text = L"""
-        Ensemble Results \\
-        Best Fit - RMSE: %$(c_bf_rmse) [$\rho_{\mathrm{log}}$: %$(v_bf_pearson)] \\
-        Ensemble Mean - RMSE: %$(c_rmse) [$\rho_{\mathrm{log}}$: %$(mean_r_log)]
-        """
+        bf_val_str = isnothing(v_bf_val_rmse) ? "" : " | Val RMSE: $(v_bf_val_rmse)"
+        ens_val_str = isnothing(v_ens_val_rmse) ? "" : " | Val RMSE: $(v_ens_val_rmse)"
+        metrics_annotation = (
+            "Best Fit - Cal RMSE: $(c_bf_rmse)$(bf_val_str) | ρ_log: $(v_bf_pearson)\n" *
+            "Ensemble - Cal RMSE: $(c_rmse)$(ens_val_str) | ρ_log: $(mean_r_log)"
+        )
     else
-        title_text = L"""
-        Ensemble Results \\
-        Best Fit - RMSE: %$(c_bf_rmse) [$\rho_{\mathrm{log}}$: %$(v_bf_pearson)]
-        """
+        bf_val_str = isnothing(v_bf_val_rmse) ? "" : " | Val RMSE: $(v_bf_val_rmse)"
+        metrics_annotation = "Best Fit - Cal RMSE: $(c_bf_rmse)$(bf_val_str) | ρ_log: $(v_bf_pearson)"
     end
 
     # Timeseries panel (total cover)
@@ -790,24 +840,56 @@ function plot_calibration_results(
         f[1, 1];
         xlabel="Date",
         ylabel="Total Coral Cover [%]",
-        title=title_text,
+        title="Ensemble Results",
         titlesize=20,
         xlabelsize=16,
         ylabelsize=16
     )
 
+    # Shading regions for non-calibration years.
+    # ecoRRAP validation indices (already computed above as ecorrap_overlap_idx[v_ecorrap])
+    ecorrap_val_sim_idx = ecorrap_overlap_idx[v_ecorrap]
+
+    # All simulation years between the first excluded post-disturbance year and the
+    # last calibration year (exclusive) that are not themselves calibration years.
+    # This includes years with no observation at all (e.g. 2019), which won't appear
+    # in v_sim_indices but are still post-disturbance and should be shaded.
+    post_dist_shade_years = if !isnothing(v_sim_indices) && !isempty(v_sim_indices)
+        first_excl = minimum(sim_timeframe[v_sim_indices])
+        last_calib = maximum(sim_timeframe[c_sim_indices])
+        calib_years = Set(sim_timeframe[c_sim_indices])
+        ecorrap_years = Set(sim_timeframe[ecorrap_val_sim_idx])
+        [
+            yr for yr in sim_timeframe
+            if yr >= first_excl && yr < last_calib &&
+               yr ∉ calib_years && yr ∉ ecorrap_years
+        ]
+    else
+        Int[]
+    end
+
+    # ecoRRAP years — consecutive, so a single band; darker shade to distinguish
+    ecorrap_shade_years = sim_timeframe[ecorrap_val_sim_idx]
+
+    function shade_postdist_regions!(ax)
+        for yr in post_dist_shade_years
+            vspan!(ax, yr - 0.5, yr + 0.5; color=(:gray, 0.08))
+        end
+        if !isempty(ecorrap_shade_years)
+            vspan!(
+                ax,
+                minimum(ecorrap_shade_years) - 0.5,
+                maximum(ecorrap_shade_years) + 0.5;
+                color=(:gray, 0.18)
+            )
+        end
+    end
+
+    shade_postdist_regions!(ax1)
+
     # Collect legend elements and labels
     legend_elements = []
     legend_labels = String[]
-
-    sim_timeframe = Dates.year.(Date.(sim_year_range))
-
-    # High validation years
-    # min_x, max_x = extrema(ensemble_params[p, :])
-    # buffer = abs(-(extrema(ensemble_params[p, :])...)) * 0.1
-    # min_x, max_x = min_x - buffer, max_x + buffer
-    # min_y, max_y = median_fitness, maximum(ensemble_fitnesses) + 0.1
-    # background_rect = Rect2f(min_x, min_y, max_x - min_x, max_y - min_y)
 
     # Plot ensemble trajectories if available (in background)
     if !isnothing(ensemble_res)
@@ -890,6 +972,14 @@ function plot_calibration_results(
     # Add legend to the right
     Legend(f[1, 2], legend_elements, legend_labels; labelsize=16)
 
+    # Metrics annotation inside the plot (bottom left)
+    text!(ax1, 0.02, 0.03;
+        text=metrics_annotation,
+        align=(:left, :bottom),
+        space=:relative,
+        fontsize=16
+    )
+
     hidexdecorations!(ax1; ticks=true, ticklabels=true, grid=false)
 
     # Group trajectories panel
@@ -901,6 +991,7 @@ function plot_calibration_results(
         xlabelsize=16,
         ylabelsize=16
     )
+    shade_postdist_regions!(ax2)
 
     # Collect group legend elements and labels
     group_legend_elements = []
@@ -981,6 +1072,7 @@ function plot_calibration_results(
         xlabelsize=16,
         ylabelsize=16
     )
+    shade_postdist_regions!(ax3)
 
     # Get DHW data and create date vector
     dhw_data = env_conditions[:, :, At(:dhw)].data

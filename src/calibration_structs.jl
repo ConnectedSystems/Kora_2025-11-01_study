@@ -11,6 +11,7 @@ Configuration for a specific reef being calibrated.
 - `density::Int`: Maximum population density per m²
 - `initial_proportions::Vector{Float32}`: Initial proportion of each functional group
 - `exclude_years::Vector{Int}`: Years to exclude from calibration (e.g., cyclone years)
+- `disturbance_years::Vector{Int}`: Years of known major disturbances (e.g., bleaching events), marked on sensitivity plots
 """
 struct ReefConfig
     reef_id::String
@@ -20,6 +21,7 @@ struct ReefConfig
     density::Int
     initial_proportions::Vector{Float32}
     exclude_years::Vector{Int}
+    disturbance_years::Vector{Int}
 end
 
 """
@@ -34,11 +36,12 @@ function ReefConfig(;
     depth::Float64=7.0,
     density::Int=10,
     initial_proportions::Vector{Float32}=[0.35f0, 0.3f0, 0.1f0, 0.1f0, 0.15f0],
-    exclude_years::Vector{Int}=Int[]
+    exclude_years::Vector{Int}=Int[],
+    disturbance_years::Vector{Int}=Int[]
 )
     return ReefConfig(
         reef_id, reef_name, area, depth, density,
-        initial_proportions, exclude_years
+        initial_proportions, exclude_years, disturbance_years
     )
 end
 
