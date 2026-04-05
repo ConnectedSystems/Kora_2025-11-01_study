@@ -1,6 +1,245 @@
-# 2025-11-01_study
+# CoralFlow calibration (2025-11-01)
 
-Note: This repository is full of code that does not follow best coding practices
-and is a hodge podge of things that I threw together to get things to work quickly.
-My apologies to the reader who has to figure it out, as I do not have time to clean it all
-up.
+> **Note:** This is research code that is functional but does not follow best practices. 
+> The structure is documented here to help readers reproduce the analysis as well as 
+> possible. My apologies to the reader who has to figure it out, as I do not have time to 
+> clean it all up. If it is any consolation, I hate the state of the code very much.
+
+Future efforts will incorporate the ensemble calibration and assessment process into
+[CoralFlow.jl](https://github.com/ConnectedSystems/CoralFlow.jl) or a companion package.
+
+---
+
+## Purpose
+
+This study calibrates and evaluates the [CoralFlow.jl](https://github.com/ConnectedSystems/CoralFlow.jl)
+individual-based coral reef model against field observations for two reefs:
+
+- **Moore Reef** (16071S) — Offshore North region, Great Barrier Reef
+- **Masig Reef** — Torres Strait region
+
+A third reef (**11-162**, Far North) is calibrated without a full sensitivity assessment using
+regression models for the Offshore North region, not a reef-specific regression. It is not 
+included in the paper as the findings from Masig Reef sufficed. The results/figures are 
+kept to illustrate the danger of applying models without a careful assessment of utility for
+the purpose of projection.
+
+The workflow first processes raw EcoRRAP benthic survey data into annual mean cover estimates by
+functional group, then performs an exploratory sensitivity analysis of the growth and survival
+functions, fits reef-specific regression models to the field data, calibrates an ensemble of
+plausible initial reef states against historical observations, and finally performs sensitivity
+analysis to identify which parameters most influence model behaviour.
+
+---
+
+## Requirements
+
+### Julia
+
+Julia ≥ 1.11 is recommended. Install dependencies by activating the project and running:
+
+```julia
+using Pkg
+Pkg.instantiate()
+```
+
+### Key packages (declared in `common.jl`)
+
+| Package | Purpose |
+|---|---|
+| `CoralFlow` | Core reef simulation model (separate repository) |
+| `BlackBoxOptim` | Evolutionary optimisation for calibration |
+| `QuasiMonteCarlo` | Sobol sampling for sensitivity analysis |
+| `HypothesisTests` | KS-test used internally by the PAWN implementation |
+| `PairPlots` | Parameter correlation visualisation |
+| `CairoMakie` | Figures |
+| `Distributed` | Parallel calibration workers |
+
+### Parallel execution
+
+Scripts `03a`, `04a`, and `05a` spawn worker processes via `Distributed.addprocs`. The number of
+workers is set at the top of each script (`n_workers = 20`). Adjust this to match available CPU
+cores before running.
+
+---
+
+## External data
+
+The following files are **not** included in this repository and must be obtained separately before
+running any scripts.
+
+### Restricted data (not publicly available)
+
+These files were provided under data sharing arrangements and cannot be redistributed. They are
+expected one directory **above** the study folder (i.e. alongside the `2025-11-01_study/`
+directory, at `../data/` relative to the scripts).
+
+| File | Source |
+|---|---|
+| `ecorrap_adult_juv_combined_2021_2023_24062025.csv` | EcoRRAP program (AIMS) |
+| `EcoRRAP data for IPM_250624.csv` | EcoRRAP program (AIMS) |
+
+The first incorporates juvenile quadrat data from:
+> Doropoulos, C., Alvarez-Noriega, M., Fabricius, K., Ferrari, R., Mumby, P.J., Noonan, S.H.C., Orr, M., > 
+> Salee, K., 2025. Impact of environmental gradients on juvenile coral demography across the Great Barrier 
+> Reef and Torres Strait. Coral Reefs. https://doi.org/10.1007/s00338-025-02742-6
+
+The second dataset was collated by Dr. Anna Cresswell (Australian Institute of Marine Science)
+and can be provided on request.
+
+The [Canonical Reefs](https://github.com/gbrrestoration/canonical-reefs) dataset is used to 
+identify reefs of interest by their UNIQUE IDs.
+
+Manta Tow data were sourced directly from the 
+[AIMS Reef Monitoring Dashboard](https://apps.aims.gov.au/reef-monitoring/reefs) for the 
+reefs of interest.
+
+### Publicly available data
+
+These files must be placed in the locations shown relative to the study folder.
+
+| File | Location | Source |
+|---|---|---|
+| `Moore Reef_Manta Tow_line_chart_modelled_2025-12-28.csv` | `data/` | AIMS LTMP |
+| `McSweeney Reef_Manta Tow_line_chart_modelled_2026-01-11.csv` | `data/` | AIMS LTMP |
+| `Reef 11-162_Benthic_line_chart_modelled_2025-12-22.csv` | `data/` | AIMS LTMP |
+| `dhw_scens.nc` | `data/dhw/` | RRAP / CoralBlox scenario data |
+| `DHW_Moore_Reef.csv`, `DHW_Masig_reef.csv`, `DHW_KBN_extracted.csv` | `data/dhw/` | NOAA CRW or extracted from above |
+| `rrap_canonical_2025-07-15-T10-48-29.gpkg` | `data/` | RRAP canonical reef dataset |
+
+---
+
+## Workflow
+
+Scripts are numbered in execution order. Run each script from the `2025-11-01_study/` directory.
+Within each stage, `a` scripts produce data consumed by `b` scripts.
+
+### Stage 0 — Data preparation
+
+| Script | Inputs | Key outputs | Notes |
+|---|---|---|---|
+| `00_prep_ecorrap_data.jl` | `data/ecorrap_benthic/EcoRRAP_Benthic_Data_*.csv`, labelset mapping | `data/ecorrap_benthic/moore_estimate.csv`, `masig_estimate.csv`, `data/Masig_Reef_EcoRRAP_estimate.csv` | Aggregates EcoRRAP point-intercept transect data into annual mean cover by functional group for each site |
+
+### Stage 1 — Exploratory sensitivity analysis of growth/survival functions
+
+| Script | Inputs | Key outputs | Notes |
+|---|---|---|---|
+| `01a_exploratory_SA.jl` | EcoRRAP IPM data CSV | `figs/sensitivity/` PAWN heatmaps | Region-wide SA; helper functions used by `01b`/`01c` |
+| `01b_exploratory_SA_offshore_north.jl` | EcoRRAP data | `data/offshore_north/{overall,moore}/` CSVs + model `.dat` files, `figs/sensitivity/offshore_north/` | Fits and evaluates growth/survival models for offshore north region and Moore Reef |
+| `01c_exploratory_SA_torres_strait.jl` | EcoRRAP data | `data/torres_strait/{overall,masig,...}/` CSVs + model `.dat` files, `figs/sensitivity/torres_strait/` | Same for Torres Strait |
+
+### Stage 2 — Regression model fitting (diameter-based)
+
+| Script | Inputs | Key outputs | Notes |
+|---|---|---|---|
+| `02a_offshore_north_fit_to_diameter.jl` | EcoRRAP data | `data/offshore_north/{overall,moore}/*_models.dat`, `figs/regressions/offshore_north/` | Fits final growth (degree-1) and survival (degree-2) polynomial regressions; **these `.dat` files are the models used in calibration** |
+| `02b_torres_strait_fit_to_diameter.jl` | EcoRRAP data | `data/torres_strait/{overall,masig}/*_models.dat`, `figs/regressions/torres_strait/` | Same for Torres Strait |
+
+### Stage 3 — Moore Reef ensemble calibration and assessment
+
+| Script | Inputs | Key outputs | Notes |
+|---|---|---|---|
+| `03a_moore_ensemble.jl` | Config `_16071S_config.jl`, model `.dat` files, LTMP manta tow CSV, DHW CSV | `data/ensemble/offshore_north/moore/16071S_*.dat`, calibration figures in `figs/`, summary CSVs | Runs parallel multi-start ensemble calibration; see [Iterative calibration](#iterative-calibration) |
+| `03b_moore_ensemble_assessment.jl` | Output of `03a`, LTMP data, EcoRRAP benthic estimate | `data/sensitivity/offshore_north/moore/ensemble/16071S_*.dat`, `data/ensemble/offshore_north/moore/16071S_parameter_correlations.csv`, sensitivity figures | Unconstrained and ensemble-constrained PAWN SA; temporal and lagged sensitivity analysis |
+
+### Stage 4 — Masig Reef ensemble calibration and assessment
+
+| Script | Inputs | Key outputs | Notes |
+|---|---|---|---|
+| `04a_masig_torres_strait_ensemble.jl` | Config `_masig_config.jl`, model `.dat` files, EcoRRAP benthic CSV, DHW CSV | `data/ensemble/torres_strait/masig/masig_*.dat`, calibration figures, summary CSVs | Same parallel calibration workflow as `03a` |
+| `04b_masig_ensemble_assessment.jl` | Output of `04a`, EcoRRAP benthic CSV | `data/sensitivity/torres_strait/masig/ensemble/masig_*.dat`, `data/ensemble/torres_strait/masig/masig_parameter_correlations.csv`, sensitivity figures | Same SA workflow as `03b` |
+
+### Stage 5 — Reef 11-162 (Far North) ensemble calibration and assessment
+
+| Script | Inputs | Key outputs | Notes |
+|---|---|---|---|
+| `05a_un_reef_11-162_far_north_ensemble.jl` | Inline config (no separate config file), `data/offshore_north/overall/*_models.dat`, LTMP benthic CSV, DHW CSV | `data/ensemble/offshore_north/11-162/11-162_*.dat`, calibration figures | Calibration only; uses region-level (overall) models, not reef-specific ones |
+| `05b_un_reef_11-162_far_north_ensemble_assessment.jl` | Output of `05a` | `data/sensitivity/offshore_north/11-162/ensemble/`, figures | Sensitivity assessment; no temporal analysis (shorter time series) |
+
+---
+
+## Configuration
+
+Reef-specific settings for Moore and Masig are kept in standalone config files that are `include`d
+at the top of each calibration script:
+
+| File | Reef | Controls |
+|---|---|---|
+| `_16071S_config.jl` | Moore Reef | `ReefConfig` (area, depth, density, initial proportions, excluded years, disturbance years), `CalibrationDataPaths`, `OptimizationConfig`, `CalibrationSettings`, `param_bounds` |
+| `_masig_config.jl` | Masig Reef | Same structure |
+
+Reef 11-162 has no separate config file; settings are defined inline in `05a`.
+
+**To adapt to a new reef**, copy one of the config files, update all fields, and create new `a`/`b`
+script pair following the existing pattern.
+
+### Key configuration parameters
+
+| Parameter | Location | Effect |
+|---|---|---|
+| `exclude_years` | `ReefConfig` | Years removed from calibration (held out for validation or disturbed) |
+| `disturbance_years` | `ReefConfig` | Marked on time-series plots as known disturbance events |
+| `fitness_threshold` | `OptimizationConfig` | Scores below this are accepted as ensemble members; lower = stricter |
+| `ensemble_members` | `OptimizationConfig` | Target number of accepted parameter sets |
+| `max_steps` | `OptimizationConfig` | Maximum optimisation steps per trial |
+| `scalers_*` bounds | `param_bounds` | Range allowed for per-group growth rate multipliers; narrow these (e.g. `(0.95, 1.05)`) if post-calibration growth is unrealistic |
+
+---
+
+## Iterative calibration
+
+The `03a`/`04a`/`05a` scripts implement a deliberate multi-round workflow:
+
+1. **First run** — no prior candidates exist; the script runs from scratch and saves
+   `*_initial_guess.dat` alongside the ensemble output.
+2. **Subsequent runs** — the script detects `*_initial_guess.dat` and seeds the initial
+   population with previously found candidates, improving convergence.
+3. **Resuming** — if `*_optim_state.dat`, `*_optim_best.dat`, and `*_tracked_candidates.dat`
+   all exist, the script loads them directly and skips re-optimisation, proceeding straight to
+   visualisation.
+
+To force a fresh run, delete or rename the `.dat` files in the relevant
+`data/ensemble/<region>/<reef>/` directory.
+
+---
+
+## Output directory layout
+
+```
+data/
+├── <region>/<reef_or_overall>/     # regression model .dat files and fitted-data .csv files
+├── ecorrap_benthic/                # processed EcoRRAP benthic cover estimates
+├── dhw/                            # degree heating week time series
+├── ensemble/<region>/<reef>/       # calibration outputs (*_ensemble_output.dat, *_initial_guess.dat, etc.)
+└── sensitivity/<region>/<reef>/ensemble/   # sensitivity analysis samples and PAWN results
+
+figs/
+├── regressions/<region>/<reef_or_overall>/   # growth and survival regression diagnostic plots
+├── sensitivity/<region>/<reef_or_overall>/   # exploratory PAWN sensitivity figures
+│   └── ensemble/                             # ensemble-constrained SA figures
+└── <reef_id>_calib_param_interactions.png    # parameter–fitness scatter plots
+```
+
+---
+
+## Non-obvious design choices
+
+- **PAWN sensitivity analysis is a custom implementation** in `src/sensitivity.jl`, ported from
+  [ADRIA.jl](https://github.com/open-AIMS/ADRIA.jl), which itself was adapted from the
+  [SALib Python package](https://salib.readthedocs.io). It is not sourced from any Julia
+  sensitivity analysis package.
+
+- **Group proportions are not parameterised directly.** The five proportion parameters are Gamma
+  quantiles that are transformed via an internal `gamma_to_dirichlet` function to ensure they sum
+  to 1. Do not interpret their raw values as proportions.
+
+- **The fitness metric is a composite score** combining RMSE-based terms (α, β), Pearson
+  correlation, an energy penalty, a low-cover penalty, and a rank score. Lower is better. The
+  exact formulation is in `src/calibration_helpers.jl`.
+
+- **`n_workers = 20`** at the top of parallel scripts is hardware-specific. Set it to the number
+  of physical cores available, minus one or two for the OS.
+
+- **EcoRRAP-derived growth scalers for Masig** are bounded to `(0.95, 1.05)` (narrower than Moore)
+  to prevent the optimiser from suppressing growth during the calibration period and then producing
+  unrealistic acceleration once DHW stress drops.
