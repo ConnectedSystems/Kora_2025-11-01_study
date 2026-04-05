@@ -16,7 +16,7 @@ for reg_scale in region_scale
             region=reg_scale,
             reef=rt,
             save_models=true,
-            output_dir="./$(OUTPUT_DIR)",
+            output_dir="./$(OUTPUT_DIR)/$(reg_scale)/$(isnothing(rt) ? "overall" : rt)",
             plot_validation=false,
             growth_degree=1,
             survival_degree=2,
@@ -38,8 +38,10 @@ for reg_scale in region_scale
         all_surv = vcat(values(model_results.survival_groupings)...)
 
         scale_fn = replace(scale_name, " " => "_")
-        CSV.write(joinpath(OUTPUT_DIR, scale_fn * "_growth.csv"), all_growth)
-        CSV.write(joinpath(OUTPUT_DIR, scale_fn * "_survival.csv"), all_surv)
+        reef_dir = joinpath(OUTPUT_DIR, reg_scale, isnothing(rt) ? "overall" : rt)
+        mkpath(reef_dir)
+        CSV.write(joinpath(reef_dir, scale_fn * "_growth.csv"), all_growth)
+        CSV.write(joinpath(reef_dir, scale_fn * "_survival.csv"), all_surv)
 
         all_y_growth = all_growth.diamnext
         all_y_surv = all_surv.surv

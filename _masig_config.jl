@@ -14,8 +14,8 @@ reef_config = ReefConfig(;
 file_paths = CalibrationDataPaths(;
     dhw_scenarios="$(OUTPUT_DIR)/dhw_scens.nc",
     canonical_reefs="$(OUTPUT_DIR)/rrap_canonical_2025-07-15-T10-48-29.gpkg",
-    growth_models="$(OUTPUT_DIR)/model/torres_strait_masig_growth_models.dat",
-    survival_models="$(OUTPUT_DIR)/model/torres_strait_masig_survival_models.dat",
+    growth_models="$(OUTPUT_DIR)/torres_strait/masig/torres_strait_masig_growth_models.dat",
+    survival_models="$(OUTPUT_DIR)/torres_strait/masig/torres_strait_masig_survival_models.dat",
     output_dir=OUTPUT_DIR,
     figure_dir=FIG_DIR
 )

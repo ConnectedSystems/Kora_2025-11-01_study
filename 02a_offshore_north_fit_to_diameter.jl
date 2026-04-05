@@ -18,7 +18,7 @@ for reef in reefs
         "data/ecorrap_to_cscape_species.csv";
         region=region,
         reef=reef,
-        output_dir="./$(OUTPUT_DIR)/model",
+        output_dir="./$(OUTPUT_DIR)/$(region)/$(tgt_dir)",
         degree=1,
         n_bins=10
     )
@@ -28,7 +28,7 @@ for reef in reefs
         "data/ecorrap_to_cscape_species.csv";
         region=region,
         reef=reef,
-        output_dir="./$(OUTPUT_DIR)/model",
+        output_dir="./$(OUTPUT_DIR)/$(region)/$(tgt_dir)",
         degree=2,
         n_bins=10
     )
