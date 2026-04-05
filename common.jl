@@ -27,25 +27,27 @@ DPI = 300 / 96  # desired unit / pixels per inch
 surv_ignore_cols = [
     :class_train, :class_test, :class_train_mean, :class_test_mean, :surv_logclass,
     :logdiam, Symbol("days_t1.t2"), :cluster, :bleaching_scores,
-    :surv, :Cscape_group, :diam, :survival_use, :growth_use, :class_test_std,
+    :surv, :diam, :survival_use, :growth_use, :class_test_std,
     :class_train_std, :depth_category, :dataset, :water_clarity,
     :site_new, :transition, :plot, :size, :sizenext,
     :clarified_note_2023_july, Symbol("clarified_note_2023.1"),
     :clarified_note_2021, :clarified_note_2022, :clarified_note_2023,
     :date_2021, :date_2022, :date_2023,
-    :coral_cover_2021, :coral_cover_2022, :coral_cover_2023
+    :coral_cover_2021, :coral_cover_2022, :coral_cover_2023,
+    :est_1yo_growth
 ]
 
 growth_ignore_cols = [
     :class_train, :class_test, :class_train_mean, :class_test_mean, :surv_logclass,
     :logdiam, Symbol("days_t1.t2"), :cluster, :bleaching_scores,
-    :surv, :Cscape_group, :diamnext, :survival_use, :growth_use, :class_test_std,
+    :surv, :diamnext, :survival_use, :growth_use, :class_test_std,
     :class_train_std, :depth_category, :dataset, :water_clarity,
     :site_new, :transition, :plot, :logdiam, :growth, :lin_ext, :size, :sizenext,
     :clarified_note_2023_july, Symbol("clarified_note_2023.1"),
     :clarified_note_2021, :clarified_note_2022, :clarified_note_2023,
     :date_2021, :date_2022, :date_2023,
-    :coral_cover_2021, :coral_cover_2022, :coral_cover_2023
+    :coral_cover_2021, :coral_cover_2022, :coral_cover_2023,
+    :est_1yo_growth
 ]
 
 ENSEMBLE_PARAM_NAMES = [
@@ -88,6 +90,22 @@ function cleanup_features!(X::DataFrame)
             X[!, n] .= Int64.(X[!, n])
         end
     end
+end
+
+const _DISPLAY_RENAMES = Dict(
+    :Cscape_group => :Functional_group,
+    :temp => :temperature,
+    :depth_cont => :depth,
+    :plot_uid => :plot,
+    :site_uid => :site,
+    :ubed90_median => :bottom_stress
+)
+
+function rename_for_display!(df::DataFrame)
+    cols = propertynames(df)
+    pairs = [old => new for (old, new) in _DISPLAY_RENAMES if old in cols]
+    isempty(pairs) || rename!(df, pairs...)
+    return df
 end
 
 include("src/sensitivity.jl")

@@ -23,13 +23,15 @@ for reg_scale in region_scale
             n_bins=10
         )
 
+        human_region_name = titlecase(replace(reg_scale, "_" => " "))
         if !isnothing(rt)
-            scale_name = reg_scale * " " * rt
+            scale_name = reg_scale * "_" * rt
+            human_reef_name = titlecase(replace(rt, "_" => " ")) * " Reef"
+            human_scale_name = "$(human_reef_name) ($(human_region_name))"
         else
             scale_name = reg_scale
+            human_scale_name = human_region_name
         end
-
-        human_scale_name = titlecase(replace(scale_name, "_" => " "))
 
         fig_output = joinpath(FIG_DIR, "sensitivity", reg_scale)
         mkpath(fig_output)
@@ -64,6 +66,8 @@ for reg_scale in region_scale
 
         cleanup_features!(all_growth)
         cleanup_features!(all_surv)
+        rename_for_display!(all_growth)
+        rename_for_display!(all_surv)
 
         Si_growth = pawn(all_growth, all_y_growth; S=10)[PAWNᵢ=At(stats_of_interest)]
         f, ax, sp = heatmap(
@@ -152,6 +156,8 @@ for reg_scale in region_scale
 
             cleanup_features!(X_surv)
             cleanup_features!(X_growth)
+            rename_for_display!(X_surv)
+            rename_for_display!(X_growth)
 
             Si_growth = pawn(X_growth, y_size; S=10)[PAWNᵢ=At(stats_of_interest)]
             f, ax, sp = heatmap(

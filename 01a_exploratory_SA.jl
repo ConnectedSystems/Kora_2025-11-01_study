@@ -97,6 +97,7 @@ function prepare_growth_data(model_results)
     ignore_cols = [g for g in growth_ignore_cols if g in propertynames(all_growth)]
     select!(all_growth, Not(ignore_cols))
     cleanup_features!(all_growth)
+    rename_for_display!(all_growth)
 
     return all_growth, all_y_growth
 end
@@ -115,6 +116,7 @@ function prepare_survival_data(model_results)
     ignore_cols = [g for g in surv_ignore_cols if g in propertynames(all_surv)]
     select!(all_surv, Not(ignore_cols))
     cleanup_features!(all_surv)
+    rename_for_display!(all_surv)
 
     return all_surv, all_y_surv
 end
