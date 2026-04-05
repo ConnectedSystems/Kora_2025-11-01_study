@@ -144,7 +144,7 @@ function run_calibration(
     @info "Matched $(length(c_sim_indices)) timepoints for calibration"
 
     # Check if results already exist
-    ensemble_dir = joinpath(file_paths.output_dir, "ensemble")
+    ensemble_dir = joinpath(file_paths.output_dir, "ensemble", "offshore_north", "11-162")
     result_files = [
         joinpath(ensemble_dir, "$(reef_config.reef_id)_optim_state.dat"),
         joinpath(ensemble_dir, "$(reef_config.reef_id)_optim_best.dat"),
@@ -354,11 +354,12 @@ function run_calibration(
     # Calibration comparison plot (with ensemble if available)
     f_calib = plot_calibration_results(
         reef_state, env_conditions, reef_obs, c_sim_indices, c_ref_indices,
-        v_sim_idx, v_ref_idx,
         sim_year_range, cover, reef_config.area, metrics,
         joinpath(
             file_paths.figure_dir, "$(reef_config.reef_id)_calibration_comparison.png"
         );
+        v_sim_indices=v_sim_idx,
+        v_ref_indices=v_ref_idx,
         ensemble_res=ensemble_res
     )
 
@@ -376,7 +377,7 @@ function run_calibration(
     )
 end
 
-ensemble_data_dir = joinpath(OUTPUT_DIR, "ensemble")
+ensemble_data_dir = joinpath(OUTPUT_DIR, "ensemble", "offshore_north", "11-162")
 mkpath(ensemble_data_dir)
 
 # Run calibration

@@ -2,14 +2,14 @@ using BlackBoxOptim
 using PairPlots
 
 include("common.jl")
-include("_16071S_config.jl")
+include("_masig_config.jl")
 
-reef_id = "16071S"
-ensemble_dir = joinpath(OUTPUT_DIR, "ensemble", "offshore_north", "moore")
+reef_id = "masig"
+ensemble_dir = joinpath(OUTPUT_DIR, "ensemble", "torres_strait", "masig")
 
-ensemble_output = deserialize(joinpath(ensemble_dir, "$(reef_id)_ensemble_output.dat"));
-moore_ensemble = deserialize(joinpath(ensemble_dir, "$(reef_id)_tracked_candidates.dat"));
-ensemble_params = hcat(moore_ensemble.candidates...);
+ensemble_output = deserialize(joinpath(ensemble_dir, "$(reef_id)_ensemble_output.dat"))
+masig_ensemble = deserialize(joinpath(ensemble_dir, "$(reef_id)_tracked_candidates.dat"))
+ensemble_params = hcat(masig_ensemble.candidates...)
 
 parameter_identifiability_metrics(ensemble_params, ENSEMBLE_PARAM_NAMES)
 
@@ -20,27 +20,18 @@ corr_df[!, :Correlation] .= round.(corr_df.Correlation; digits=3)
 CSV.write("$(ensemble_dir)/$(reef_id)_parameter_correlations.csv", corr_df)
 
 # ── Create paths ──────────────────────────────────────────────────────────────
-ensemble_data_dir = joinpath(OUTPUT_DIR, "sensitivity", "offshore_north", "moore", "ensemble")
+ensemble_data_dir = joinpath(OUTPUT_DIR, "sensitivity", "torres_strait", "masig", "ensemble")
 mkpath(ensemble_data_dir)
 
-fn_unconstrained_samples = joinpath(
-    ensemble_data_dir, "$(reef_id)_unconstrained_samples.dat"
-)
-fn_unconstrained_fitness = joinpath(
-    ensemble_data_dir, "$(reef_id)_unconstrained_fitness.dat"
-)
-fn_unconstrained_pawn = joinpath(
-    ensemble_data_dir, "$(reef_id)_unconstrained_pawn_results.dat"
-)
+fn_unconstrained_samples = joinpath(ensemble_data_dir, "$(reef_id)_unconstrained_samples.dat")
+fn_unconstrained_fitness  = joinpath(ensemble_data_dir, "$(reef_id)_unconstrained_fitness.dat")
+fn_unconstrained_pawn     = joinpath(ensemble_data_dir, "$(reef_id)_unconstrained_pawn_results.dat")
 
-ensemble_fig_dir = joinpath(FIG_DIR, "sensitivity", "offshore_north", "moore", "ensemble")
+ensemble_fig_dir = joinpath(FIG_DIR, "sensitivity", "torres_strait", "masig", "ensemble")
 mkpath(ensemble_fig_dir)
 
-# Loaded unconditionally: sim_year_range is referenced by the temporal PAWN
-# section regardless of whether cached sensitivity results exist on disk.
-reef_df = CSV.read(
-    "$(OUTPUT_DIR)/Moore Reef_Manta Tow_line_chart_modelled_2025-12-28.csv", DataFrame
-)
+# Load observations and rebuild sim_year_range
+reef_df = CSV.read(joinpath("./data", "Masig_Reef_EcoRRAP_estimate.csv"), DataFrame)
 reef_obs = DataFrame(;
     SAMPLE_DATE=reef_df.report_year,
     MEAN_LIVE_CORAL=reef_df.mean,
@@ -48,11 +39,12 @@ reef_obs = DataFrame(;
     UPPER=reef_df.upper
 )
 
-start_year = Year(Date(reef_obs.SAMPLE_DATE[3])).value
-end_year = Year(Date(reef_obs.SAMPLE_DATE[end])).value
+benthic_estimate = CSV.read("$(OUTPUT_DIR)/ecorrap_benthic/masig_estimate.csv", DataFrame)
+sim_start_year = benthic_estimate.year[1]
+sim_end_year = benthic_estimate.year[end]
 
 sim_year_range = create_simulation_dates(
-    start_year, end_year, calib_settings.start_month
+    sim_start_year, sim_end_year, calib_settings.start_month
 )
 
 reef_state = ensemble_output.reef_state
@@ -68,9 +60,6 @@ sim_indices, ref_indices, matched_dates = exclude_years_from_indices(
     sim_indices, ref_indices, matched_dates, reef_config.exclude_years
 )
 
-benthic_estimate = CSV.read(
-    "$(OUTPUT_DIR)/ecorrap_benthic/moore_estimate.csv", DataFrame
-)
 year_span = year.(matched_dates)
 sim_benthic_years = [year_span .∈ Ref(benthic_estimate.year)][1]
 aligned_years = year_span[sim_benthic_years]
@@ -84,7 +73,7 @@ runner_pool = create_objective_pool(
     reef_state, env_conditions, reef_obs.MEAN_LIVE_CORAL,
     sim_indices, ref_indices, reef_config.area,
     sim_benthic_years, benthic_data,
-    89, calib_settings.use_scalers
+    opt_config.random_seed, calib_settings.use_scalers
 )
 
 # ── Unconstrained sensitivity analysis ───────────────────────────────────────
@@ -130,18 +119,14 @@ else
 end
 
 # ── Constrained sensitivity analysis ─────────────────────────────────────────
-fn_constrained_samples = joinpath(
-    ensemble_data_dir, "$(reef_id)_constrained_samples.dat"
-)
-fn_constrained_fitness = joinpath(
-    ensemble_data_dir, "$(reef_id)_constrained_fitness.dat"
-)
-fn_constrained_pawn = joinpath(ensemble_data_dir, "$(reef_id)_constrained_pawn_results.dat")
+fn_constrained_samples = joinpath(ensemble_data_dir, "$(reef_id)_constrained_samples.dat")
+fn_constrained_fitness  = joinpath(ensemble_data_dir, "$(reef_id)_constrained_fitness.dat")
+fn_constrained_pawn     = joinpath(ensemble_data_dir, "$(reef_id)_constrained_pawn_results.dat")
 
 if !isfile(fn_constrained_samples)
-    param_bounds = extrema.(eachrow(ensemble_params))
-    unif_dists = [Uniform(l, u) for (l, u) in param_bounds]
-    n_bounds = length(param_bounds)
+    cons_param_bounds = extrema.(eachrow(ensemble_params))
+    unif_dists = [Uniform(l, u) for (l, u) in cons_param_bounds]
+    n_bounds = length(cons_param_bounds)
     cons_samples = Matrix(
         QMC.sample(n, zeros(n_bounds), ones(n_bounds), sample_method)'
     )
@@ -157,9 +142,7 @@ if !isfile(fn_constrained_samples)
     @info "Running ensemble-constrained sample ($(n_threads) threads)"
     cons_fitness_scores = Vector{Float64}(undef, size(cons_samples, 1))
     Threads.@threads :static for i in axes(cons_samples, 1)
-        cons_fitness_scores[i] = runner_pool[Threads.threadid()](
-            collect(cons_samples[i, :])
-        )
+        cons_fitness_scores[i] = runner_pool[Threads.threadid()](collect(cons_samples[i, :]))
     end
 
     serialize(fn_constrained_fitness, cons_fitness_scores)
@@ -213,10 +196,6 @@ sleep(5)
 save("$(ensemble_fig_dir)/$(reef_id)_ensemble_corr_param_pairplot.png", f; px_per_unit=DPI)
 
 # ── Identify most influential parameters from constrained PAWN ────────────────
-cons_pawn_sa_results[
-    sortperm(cons_pawn_sa_results[PAWNᵢ=At(:median)]; rev=true), At(:median)
-].data
-
 most_influential = collect(
     sortperm(cons_pawn_sa_results[PAWNᵢ=At(:median)]; rev=true)[1:10]
 )
@@ -247,30 +226,21 @@ save(
 # ═══════════════════════════════════════════════════════════════════════════════
 # ADDITION 1 — Reduction in prediction uncertainty histogram
 #
-# Identifies which parameter saw the greatest tightening of its distribution
-# after calibration by comparing the unconstrained prior (unc_samples, uniform
-# QMC sweep over param_bounds) against the multi-start calibration posterior
-# (ensemble_params).  ensemble_params reflects the actual geometry of good
-# solutions — including correlations and multi-modality visible in the pairplots
-# — which a constrained QMC bounding-box sweep cannot capture.
-#
-# Relative reduction in standard deviation is used as the ranking metric:
+# Compares unconstrained prior (unc_samples) against the multi-start calibration
+# posterior (ensemble_params) using relative σ reduction as the ranking metric:
 #   (σ_prior − σ_posterior) / σ_prior
-# The histogram shows the prior vs posterior distribution for the most-reduced
-# parameter.  CV annotations quantify the tightening numerically.
+# Two rows of three panels: greatest uncertainty reduction (top) and most
+# PAWN-sensitive parameters (bottom).
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# ensemble_params is (n_params × n_candidates); need (n_candidates × n_params)
 posterior_samples = Matrix(ensemble_params')
 
-# Relative reduction in std: prior = unc_samples, posterior = ensemble_params
 σ_prior     = vec(std(unc_samples;       dims=1))
 σ_posterior = vec(std(posterior_samples; dims=1))
 rel_reduction = (σ_prior .- σ_posterior) ./ σ_prior
 
-# Top-3 most-reduced and top-3 most-sensitive (PAWN) parameters
-top3_reduced  = sortperm(rel_reduction; rev=true)[1:3]
-top3_sensitive = most_influential[1:3]  # already sorted by PAWN median
+top3_reduced   = sortperm(rel_reduction; rev=true)[1:3]
+top3_sensitive = most_influential[1:3]
 
 function plot_uncertainty_panel!(ax, pidx, unc_samples, posterior_samples, rel_reduction)
     unc_v  = unc_samples[:,       pidx]
@@ -299,7 +269,7 @@ Label(fig_hist[1, 0]; text="Greatest\nuncertainty\nreduction", tellheight=false,
 Label(fig_hist[2, 0]; text="Most\nsensitive\n(PAWN)", tellheight=false, rotation=π/2, fontsize=13)
 
 for (col, pidx) in enumerate(top3_reduced)
-    ax = Axis(
+    local ax = Axis(
         fig_hist[1, col];
         xlabel=string(ENSEMBLE_PARAM_NAMES[pidx]),
         ylabel=col == 1 ? "Density" : "",
@@ -308,7 +278,7 @@ for (col, pidx) in enumerate(top3_reduced)
 end
 
 for (col, pidx) in enumerate(top3_sensitive)
-    ax = Axis(
+    local ax = Axis(
         fig_hist[2, col];
         xlabel=string(ENSEMBLE_PARAM_NAMES[pidx]),
         ylabel=col == 1 ? "Density" : "",
@@ -316,15 +286,13 @@ for (col, pidx) in enumerate(top3_sensitive)
     plot_uncertainty_panel!(ax, pidx, unc_samples, posterior_samples, rel_reduction)
 end
 
-# Shared legend via a dummy axis
 Legend(fig_hist[0, 1:3],
     [PolyElement(; color=(:steelblue, 0.6)), PolyElement(; color=(:orangered, 0.6))],
     ["Prior (unconstrained)", "Posterior (calibrated ensemble)"];
     orientation=:horizontal,
     framevisible=false
 )
-
-Label(fig_hist[0, 0]; text="", tellheight=false)  # spacer to align legend with panels
+Label(fig_hist[0, 0]; text="", tellheight=false)
 
 save(
     joinpath(ensemble_fig_dir, "$(reef_id)_prediction_uncertainty_reduction.png"),
@@ -333,47 +301,14 @@ save(
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ADDITION 2 — Temporal (time-varying) PAWN sensitivity analysis
-#
-# A parameter that appears globally insensitive in the aggregated fitness score
-# may still dominate model behaviour during critical windows — e.g. immediately
-# after a bleaching or cyclone event.  PAWN computed at each timestep independently
-# reveals these transient influences.
-#
-# Two output figures are produced:
-#   1. Heatmap  (parameters × time)  — full sensitivity landscape
-#   2. Line plot for the top-k parameters — easier to read around disturbance windows
-#
-# Per-group trajectories are computed separately and produce one heatmap per
-# functional group, enabling the same analysis broken down by coral type.
 # ═══════════════════════════════════════════════════════════════════════════════
 
 """
     create_timeseries_function(reef_state, env_conditions, area, seed, use_scalers)
 
 Create a function that runs the model and returns the full simulated coral cover
-trajectory rather than aggregating to a scalar fitness score.
-
-The returned closure shares the same parameter layout and transformation as
-`create_objective_function`, so `ensemble_params` columns can be passed directly.
-
-# Thread safety
-`reef_state` is mutated in-place by `set_population!`, `assign_scalers!`, and
-`run_model!`.  A pool of `deepcopy` instances — one per available thread — is
-created at construction time so that concurrent calls never share state.
-
-# Arguments
-- `reef_state`     Initial reef state (not mutated; copies are made internally).
-- `env_conditions` Environmental forcing data.
-- `area`           Reef area used to normalise cover (m²).
-- `seed`           Base RNG seed; each thread receives `seed + threadid`.
-- `use_scalers`    Whether location-specific growth scalers are included in `x`.
-
-# Returns
-A function  `(x::Vector; return_by_group::Bool=false) → cover`
-
-where `cover` is:
-- `Vector{Float32}` of length `n_timesteps`             (total cover, default)
-- `Matrix{Float32}` of shape `(n_timesteps × n_groups)` (if `return_by_group=true`)
+trajectory rather than aggregating to a scalar fitness score.  Thread-safe via
+an internal pool of reef_state copies.
 """
 function create_timeseries_function(
     reef_state::ReefState,
@@ -415,11 +350,9 @@ function create_timeseries_function(
         end
 
         if return_by_group
-            # (n_timesteps × n_groups) — enables per-group temporal PAWN
             return CoralFlow.group_cover_timeseries(rs) ./ area
         else
-            cover = CoralFlow.coral_cover(rs)
-            return cover ./ area
+            return CoralFlow.coral_cover(rs) ./ area
         end
     end
 
@@ -427,45 +360,34 @@ function create_timeseries_function(
 end
 
 # ── Output paths ──────────────────────────────────────────────────────────────
-fn_temporal_ts = joinpath(ensemble_data_dir, "$(reef_id)_temporal_ts_outputs.dat")
+fn_temporal_ts   = joinpath(ensemble_data_dir, "$(reef_id)_temporal_ts_outputs.dat")
 fn_temporal_pawn = joinpath(ensemble_data_dir, "$(reef_id)_temporal_pawn_results.dat")
 
 # ── Recover per-timestep trajectories ─────────────────────────────────────────
 if !isfile(fn_temporal_ts)
-
-    # Option A: trajectories already stored inside ensemble_output.
-    # Adjust the field name to match your actual struct layout.
-    if hasproperty(ensemble_output, :trajectories) &&
-        !isnothing(ensemble_output.trajectories)
-        @info "Option A: loading trajectories from ensemble_output"
-
+    if hasproperty(ensemble_output, :trajectories) && !isnothing(ensemble_output.trajectories)
+        @info "Loading trajectories from ensemble_output"
         ts_outputs =
             ensemble_output.trajectories isa Matrix ?
             ensemble_output.trajectories :
             Matrix(ensemble_output.trajectories')
     else
-        # Option B: re-run the model on ensemble candidates.
-        # Only n_candidates evaluations — far cheaper than the 8192-sample QMC sweep.
-        @info "Option B: re-running model on $(size(ensemble_params, 2)) ensemble candidates"
+        @info "Re-running model on $(size(ensemble_params, 2)) ensemble candidates"
 
         n_candidates = size(ensemble_params, 2)
         n_sim_steps = length(env_conditions.timestep)
 
         if n_candidates < 100
             @warn "Only $(n_candidates) ensemble candidates available. " *
-                "Temporal PAWN estimates may be unreliable. " *
-                "Consider supplementing with additional samples around the ensemble range."
+                "Temporal PAWN estimates may be unreliable."
         end
 
         model_ts_runner = create_timeseries_function(
             reef_state, env_conditions, reef_config.area,
-            89, calib_settings.use_scalers
+            opt_config.random_seed, calib_settings.use_scalers
         )
 
         ts_outputs = Matrix{Float32}(undef, n_candidates, n_sim_steps)
-
-        # Parallelism is safe: each thread operates on its own reef_state copy
-        # from the pool constructed inside create_timeseries_function.
         Threads.@threads :static for i in 1:n_candidates
             ts_outputs[i, :] = model_ts_runner(ensemble_params[:, i])
         end
@@ -479,7 +401,6 @@ end
 n_sim_steps = size(ts_outputs, 2)
 n_params = size(ensemble_params, 1)
 
-# ensemble_params is (n_params × n_candidates); pawn() expects (n_samples × n_params)
 X = Matrix(ensemble_params')
 
 # ── Compute PAWN at each timestep ─────────────────────────────────────────────
@@ -497,14 +418,10 @@ else
     temporal_pawn = deserialize(fn_temporal_pawn)
 end
 
-# decimal_years = [Year(d).value + (Month(d).value - 1) / 12 for d in sim_year_range]
-decimal_years = collect(1994:2023)
-
+decimal_years = collect(sim_start_year:sim_end_year)
 disturbance_years = Float64.(reef_config.disturbance_years)
 
 # ── Figure 1: heatmap (parameters × time) ────────────────────────────────────
-# Rows sorted by mean PAWN across all timesteps so the most consistently
-# influential parameters sit at the top.
 row_order = sortperm(vec(mean(temporal_pawn; dims=2)); rev=true)
 sorted_pawn = temporal_pawn[row_order, :]
 sorted_names = ENSEMBLE_PARAM_NAMES[row_order]
@@ -520,10 +437,7 @@ ax_tsa = Axis(
 )
 
 hm = heatmap!(
-    ax_tsa,
-    decimal_years,
-    1:n_params,
-    sorted_pawn';
+    ax_tsa, decimal_years, 1:n_params, sorted_pawn';
     colormap=:viridis,
     colorrange=(0.0, max(0.1, maximum(sorted_pawn)))
 )
@@ -540,8 +454,6 @@ save(
 )
 
 # ── Figure 2: line plot for the top-k parameters ──────────────────────────────
-# Easier to read than the heatmap when explaining a particular parameter
-# that spikes around a disturbance window.
 top_k = min(10, n_params)
 top_k_rows = row_order[1:top_k]
 top_k_names = ENSEMBLE_PARAM_NAMES[top_k_rows]
@@ -582,10 +494,6 @@ save(
 )
 
 # ── Per-group temporal PAWN ───────────────────────────────────────────────────
-# Runs the model on ensemble candidates returning per-group trajectories, then
-# computes temporal PAWN independently for each functional group.  Produces one
-# heatmap per group, enabling attribution of transient sensitivity to specific
-# coral types (e.g. bleaching-sensitive Acropora vs. robust encrusting forms).
 fn_temporal_ts_bygroup = joinpath(
     ensemble_data_dir, "$(reef_id)_temporal_ts_outputs_bygroup.dat"
 )
@@ -595,7 +503,7 @@ if !isfile(fn_temporal_ts_bygroup)
     n_grps = CoralFlow.n_groups(reef_state)
 
     model_ts_runner = create_timeseries_function(
-        reef_state, env_conditions, reef_config.area, 89, true
+        reef_state, env_conditions, reef_config.area, opt_config.random_seed, true
     )
 
     ts_outputs_bygroup = Array{Float32,3}(undef, n_candidates, n_sim_steps, n_grps)
@@ -612,24 +520,22 @@ end
 # ═══════════════════════════════════════════════════════════════════════════════
 # ADDITION 3 — Lagged PAWN sensitivity analysis
 #
-# The point-in-time analysis answers "which parameters influence cover at time
-# t?"  This section answers "which parameters most influence cover k years from
-# now?" — capturing lagged recovery effects that are invisible when looking at
-# instantaneous cover.
-#
 # For each lag k and window-start t, PAWN is computed on Y[i, t+k] directly:
-# the level of cover k years after the window start.  Using the difference
-# ΔY[i,t,k] = Y[i,t+k] − Y[i,t] would confound past-state sensitivity with
-# future-state sensitivity, so we use the absolute future state instead.
-#
-# A parameter that drives immediate bleaching response will peak at lag = 1.
-# A parameter governing recovery rate will show increasing influence at larger
-# lags.  The cross-lag summary figure makes this distinction directly readable.
+# the level of cover k years after the window start.
 # ═══════════════════════════════════════════════════════════════════════════════
 
-lags_yr = [1, 2, 3, 5]
+lags_yr_all = [1, 2, 3, 5]
 steps_per_yr = n_sim_steps / length(decimal_years)
-lags_ts = round.(Int, lags_yr .* steps_per_yr)
+lags_ts_all = round.(Int, lags_yr_all .* steps_per_yr)
+
+# Drop lags that meet or exceed the simulation length — no valid windows would exist
+valid_lag_mask = lags_ts_all .< n_sim_steps
+lags_yr = lags_yr_all[valid_lag_mask]
+lags_ts = lags_ts_all[valid_lag_mask]
+
+if length(lags_yr) < length(lags_yr_all)
+    @warn "Simulation length ($(n_sim_steps) steps) too short for lags $(lags_yr_all[.!valid_lag_mask]) yr — skipped"
+end
 
 fn_lagged_pawn = joinpath(ensemble_data_dir, "$(reef_id)_lagged_pawn_results.dat")
 
@@ -675,10 +581,7 @@ for (k, lag_yr) in zip(lags_ts, lags_yr)
     )
 
     hm_lag = heatmap!(
-        ax_lag,
-        valid_years,
-        1:n_params,
-        sorted_pawn_l';
+        ax_lag, valid_years, 1:n_params, sorted_pawn_l';
         colormap=:viridis,
         colorrange=(0.0, max(0.1, maximum(sorted_pawn_l)))
     )
@@ -695,10 +598,7 @@ for (k, lag_yr) in zip(lags_ts, lags_yr)
     )
 end
 
-# ── Cross-lag summary: mean sensitivity vs. recovery horizon ──────────────────
-# Shows how each top-k parameter's average influence changes with lag.
-# A parameter peaking at lag=0 drives acute response; one peaking at lag=3–5
-# is a recovery driver.  Lag=0 uses the existing point-in-time temporal_pawn.
+# ── Cross-lag summary ──────────────────────────────────────────────────────────
 fig_crosslag = Figure(; size=(900, 420))
 ax_crosslag = Axis(
     fig_crosslag[1, 1];
@@ -730,7 +630,7 @@ save(
     fig_crosslag; px_per_unit=DPI
 )
 
-# ── Per-group temporal PAWN ───────────────────────────────────────────────────
+# ── Per-group temporal PAWN heatmaps ──────────────────────────────────────────
 group_names = CoralFlow.TARGET_GROUPS
 for g in axes(ts_outputs_bygroup, 3)
     pawn_g = Matrix{Float64}(undef, n_params, n_sim_steps)

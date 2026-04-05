@@ -40,7 +40,7 @@ param_bounds = (;
 )
 
 reef_id = "11-162"
-ensemble_dir = joinpath(OUTPUT_DIR, "ensemble")
+ensemble_dir = joinpath(OUTPUT_DIR, "ensemble", "offshore_north", "11-162")
 
 ensemble_output = deserialize(joinpath(ensemble_dir, "$(reef_id)_ensemble_output.dat"));
 un_reef_ensemble = deserialize(joinpath(ensemble_dir, "$(reef_id)_tracked_candidates.dat"));
@@ -53,7 +53,7 @@ corr_df = parameter_correlation_analysis(
     ensemble_params, ENSEMBLE_PARAM_NAMES; corr_threshold=0.4
 )
 corr_df[!, :Correlation] .= round.(corr_df.Correlation; digits=3)
-CSV.write("$(OUTPUT_DIR)/ensemble/$(reef_id)_parameter_correlations.csv", corr_df)
+CSV.write("$(ensemble_dir)/$(reef_id)_parameter_correlations.csv", corr_df)
 
 pawn_sa_results = pawn(ensemble_params', un_reef_ensemble.fitnesses, ENSEMBLE_PARAM_NAMES)
 
@@ -67,7 +67,7 @@ ax.xticklabelrotation[] = π / 2
 # Unconstrained sensitivity analysis
 
 # Create paths
-ensemble_data_dir = joinpath(OUTPUT_DIR, "sensitivity", "ensemble")
+ensemble_data_dir = joinpath(OUTPUT_DIR, "sensitivity", "offshore_north", "11-162", "ensemble")
 mkpath(ensemble_data_dir)
 
 fn_unconstrained_samples = joinpath(
@@ -80,7 +80,7 @@ fn_unconstrained_pawn = joinpath(
     ensemble_data_dir, "$(reef_id)_unconstrained_pawn_results.dat"
 )
 
-ensemble_fig_dir = joinpath(FIG_DIR, "sensitivity", "ensemble")
+ensemble_fig_dir = joinpath(FIG_DIR, "sensitivity", "offshore_north", "11-162", "ensemble")
 mkpath(ensemble_fig_dir)
 
 if !isfile(fn_unconstrained_samples)
