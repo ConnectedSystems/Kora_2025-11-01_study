@@ -1,19 +1,110 @@
+using Distributed
 using BlackBoxOptim
+using Serialization
+using DataStructures
 
-include("common.jl")
-include("_16071S_config.jl")
+ENV["JULIA_DEPOT_PATH"] = "./data/jl_depot"
 
-"""
-    run_calibration(reef_config, file_paths, opt_config, search_ranges, calib_settings)
+n_workers = 20
+if length(workers()) >= n_workers
+    rmprocs(workers())
+end
 
-Run complete ensemble workflow for a specific reef.
-"""
-function run_calibration(
+addprocs(n_workers; exeflags="--project=@.")
+
+@everywhere begin
+    using BlackBoxOptim
+    using CSV
+    using DataFrames
+    using DataStructures
+    using Dates
+    using Random
+    using Serialization
+
+    include("common.jl")
+    include("_16071S_config.jl")
+
+    using CoralFlow
+end
+
+@everywhere function run_single_trial(
+    trial_id::Int,
+    objective::Function,
+    search_ranges::NamedTuple,
+    opt_config::OptimizationConfig,
+    fitness_threshold::Float64,
+    ensemble_members::Int,
+    initial_guess::Union{Nothing,Matrix{Float64}}
+)
+    @info "Worker $(myid()): Starting trial $(trial_id)"
+
+    callback, tracked_candidates, tracked_fitnesses, trial_counter = create_tracking_callback(
+        fitness_threshold, ensemble_members
+    )
+
+    opts = Dict(
+        :SearchRange => collect(search_ranges),
+        :MaxSteps => opt_config.max_steps,
+        :MaxTime => 40 * 60,
+        :PopulationSize => opt_config.population_size,
+        :CallbackInterval => 0.0,
+        :CallbackFunction => callback,
+        :TraceInterval => opt_config.trace_interval
+    )
+
+    if !isnothing(initial_guess)
+        lb = [first(y) for y in search_ranges]
+        ub = [last(y) for y in search_ranges]
+        initial_guess = hcat(map(x -> clamp.(x, lb, ub), eachcol(initial_guess))...)
+        opts[:Population] = initial_guess
+    end
+
+    res = bboptimize(objective; opts...)
+
+    n_found = trial_counter[]
+    @info "Worker $(myid()): Trial $(trial_id) complete - found $(n_found) candidates"
+
+    return (
+        trial_id=trial_id,
+        res=res,
+        tracked_candidates=tracked_candidates,
+        tracked_fitnesses=tracked_fitnesses,
+        n_candidates=n_found
+    )
+end
+
+function merge_best_candidates!(
+    main_candidates::CircularBuffer{Vector{Float64}},
+    main_fitnesses::CircularBuffer{Float64},
+    new_candidates,
+    new_fitnesses,
+    max_size::Int
+)
+    all_candidates = vcat(collect(main_candidates), collect(new_candidates))
+    all_fitnesses = vcat(collect(main_fitnesses), collect(new_fitnesses))
+
+    sorted_idx = sortperm(all_fitnesses)
+    n_keep = min(length(sorted_idx), max_size)
+    best_idx = sorted_idx[1:n_keep]
+
+    empty!(main_candidates)
+    empty!(main_fitnesses)
+
+    for idx in best_idx
+        push!(main_candidates, all_candidates[idx])
+        push!(main_fitnesses, all_fitnesses[idx])
+    end
+
+    return length(best_idx)
+end
+
+@everywhere function run_calibration(
     reef_config::ReefConfig,
     file_paths::CalibrationDataPaths,
     opt_config::OptimizationConfig,
-    search_ranges::NamedTuple, # SearchRanges,
-    calib_settings::CalibrationSettings
+    search_ranges::NamedTuple,
+    calib_settings::CalibrationSettings;
+    max_trials::Int=40
 )
     @info "Starting ensemble search for $(reef_config.reef_name) ($(reef_config.reef_id))"
 
@@ -30,8 +121,6 @@ function run_calibration(
     )
 
     @info "Loading environmental data..."
-    # reef_uid = get_reef_uid(file_paths.canonical_reefs, reef_config.reef_id)
-
     ltmp_start_year = Year(Date(reef_obs.SAMPLE_DATE[3])).value  # start 1994
     ltmp_end_year = Year(Date(reef_obs.SAMPLE_DATE[end])).value
 
@@ -61,8 +150,6 @@ function run_calibration(
         survival_models=calib_survival_models
     )
 
-    # This is for initialization - the evaluated configuration will be determined
-    # by the optimization process
     total_initial_pop = ceil(Int64, 4 * reef_config.area)
     CoralFlow.initialize_coral_population!(
         reef_state, 1, total_initial_pop;
@@ -91,19 +178,18 @@ function run_calibration(
 
     @info "Matched $(length(c_sim_indices)) timepoints for ensemble search"
 
-    # Check if results already exist
-    ensemble_dir = joinpath(file_paths.output_dir, "ensemble")
+    # Get benthic data used for calibration
+    year_span = year.(c_matched_dates)
+    sim_benthic_years = [year_span .∈ Ref(benthic_estimate.year)][1]
+    aligned_years = year_span[sim_benthic_years]
+    benthic_data = benthic_estimate[benthic_estimate.year .∈ Ref(aligned_years), :]
+
+    ensemble_dir = joinpath(file_paths.output_dir, "ensemble", "offshore_north", "moore")
     result_files = [
         joinpath(ensemble_dir, "$(reef_config.reef_id)_optim_state.dat"),
         joinpath(ensemble_dir, "$(reef_config.reef_id)_optim_best.dat"),
         joinpath(ensemble_dir, "$(reef_config.reef_id)_tracked_candidates.dat")
     ]
-
-    # Get benthic data used for calibration
-    year_span = year.(c_matched_dates)
-    sim_benthic_years = [year_span .∈ Ref(benthic_estimate.year)][1]
-    aligned_years = year_span[sim_benthic_years]
-    benthic_data = benthic_estimate[benthic_estimate.year .∈ aligned_years, :]
 
     opt_results = []
 
@@ -112,83 +198,88 @@ function run_calibration(
         res, optim_best, tracked_candidates, tracked_fitnesses, trial_contribution = load_calibration_results(
             ensemble_dir, reef_config.reef_id
         )
+        total_trials = length(trial_contribution)
     else
-        @info "Running optimization..."
+        @info "Running parallel optimization..."
 
-        # Create objective function
         objective = create_objective_function(
             reef_state, env_conditions, reef_obs.MEAN_LIVE_CORAL,
             c_sim_indices, c_ref_indices, reef_config.area, sim_benthic_years, benthic_data,
             opt_config.random_seed, calib_settings.use_scalers
         )
 
-        # Setup tracking
-        callback, tracked_candidates, tracked_fitnesses, trial_counter = create_tracking_callback(
-            opt_config.fitness_threshold, opt_config.ensemble_members
-        )
+        initial_guess_file = joinpath(ensemble_dir, "$(reef_config.reef_id)_initial_guess.dat")
+        initial_guess = isfile(initial_guess_file) ? deserialize(initial_guess_file) : nothing
 
-        # Build search ranges
-        # opt_ranges = build_search_ranges(search_ranges, calib_settings.use_scalers)
-
-        # n_trials = 5
-        trial_contribution = Int64[]  # zeros(Int64, n_trials)
-        n_trials = 0
-
-        initial_guess = if isfile("./data/ensemble/16071S_initial_guess.dat")
-            deserialize("./data/ensemble/16071S_initial_guess.dat")
-        else
-            # Will error. If restarting calibration, best to temporarily comment
-            # out the `population=guess` argument.
-            # Sorry, don't have time to make this more flexible.
-            nothing
+        if !isnothing(initial_guess)
+            @info "Seeding population from $(size(initial_guess, 2)) previous candidates"
         end
 
-        # Run multiple optimizations with different starting conditions
-        # for trial in 1:n_trials
-        while sum(trial_contribution) < opt_config.ensemble_members
-            n_trials += 1
-            @info "Running attempt $(n_trials)"
-            @info "Progress so far: $(trial_contribution) [Total: $(sum(trial_contribution))]"
-            trial_counter[] = 0
+        tracked_candidates = CircularBuffer{Vector{Float64}}(opt_config.ensemble_members)
+        tracked_fitnesses = CircularBuffer{Float64}(opt_config.ensemble_members)
+        trial_contribution = Int64[]
 
-            guess = if !isnothing(initial_guess)
-                guess_subset = rand(
-                    1:size(initial_guess, 2),
-                    floor(Int64, opt_config.population_size * 0.5)
-                )
-                initial_guess[:, guess_subset]
-            else
-                nothing
+        trial_id = 1
+        n_workers_available = length(workers())
+
+        while length(tracked_candidates) < opt_config.ensemble_members && trial_id <= max_trials
+            n_trials_to_run = min(n_workers_available, max_trials - trial_id + 1)
+            trial_ids = trial_id:(trial_id + n_trials_to_run - 1)
+
+            @info "=" ^ 60
+            @info "Running trials $(first(trial_ids)):$(last(trial_ids)) in parallel"
+            @info "Current progress: $(length(tracked_candidates)) / $(opt_config.ensemble_members) members"
+
+            trial_results = pmap(id -> run_single_trial(
+                id,
+                objective,
+                search_ranges,
+                opt_config,
+                opt_config.fitness_threshold,
+                opt_config.ensemble_members,
+                initial_guess
+            ), trial_ids)
+
+            for result in trial_results
+                push!(opt_results, result.res)
+                push!(trial_contribution, result.n_candidates)
+
+                if result.n_candidates > 0
+                    merge_best_candidates!(
+                        tracked_candidates,
+                        tracked_fitnesses,
+                        result.tracked_candidates,
+                        result.tracked_fitnesses,
+                        opt_config.ensemble_members
+                    )
+                end
             end
 
-            # Run optimization
-            res = bboptimize(
-                objective;
-                SearchRange=collect(search_ranges),
-                MaxSteps=opt_config.max_steps,
-                MaxTime=40 * 60,
-                Population=guess,  # comment this line out if starting fresh
-                PopulationSize=opt_config.population_size,
-                CallbackInterval=0.0,
-                CallbackFunction=callback,
-                TraceInterval=opt_config.trace_interval
-            )
+            trial_id += n_trials_to_run
 
-            push!(opt_results, res)
+            @info "Iteration complete:"
+            @info "  Total trials run: $(trial_id - 1)"
+            @info "  Total candidates found: $(length(tracked_candidates))"
+            @info "  Last trial contributions: $(trial_contribution[end-n_trials_to_run+1:end])"
 
-            if trial_counter[] == 0
-                @info "No ensemble candidates found!"
-            else
-                push!(trial_contribution, trial_counter[])
-                # trial_contribution[trial] = trial_counter[]
+            if length(tracked_candidates) >= opt_config.ensemble_members
+                @info "Target reached! Found $(length(tracked_candidates)) candidates"
+                break
             end
         end
 
-        optim_best = if length(tracked_fitnesses) > 0
-            tracked_candidates[findmin(tracked_fitnesses)[2]]
+        total_trials = trial_id - 1
+
+        if length(tracked_candidates) < opt_config.ensemble_members
+            @warn "Reached maximum trials ($(max_trials)) without finding enough candidates"
+            @warn "Found $(length(tracked_candidates)) / $(opt_config.ensemble_members) candidates"
+        end
+
+        optim_best = if length(tracked_candidates) > 0
+            best_idx = argmin(collect(tracked_fitnesses))
+            collect(tracked_candidates)[best_idx]
         else
-            # Get best of current round if no ensemble
-            best_candidate(res)
+            best_candidate(opt_results[1])
         end
 
         # Convert probability values to realized values
@@ -198,13 +289,17 @@ function run_calibration(
         end
 
         save_calibration_results(
-            ensemble_dir, reef_config.reef_id, res, optim_best,
+            ensemble_dir, reef_config.reef_id, opt_results[end], optim_best,
             tracked_candidates, tracked_fitnesses, trial_contribution,
             opt_config.fitness_threshold
         )
+
+        res = opt_results[end]
     end
 
-    @info "Best fitness: $(best_fitness.(opt_results))"
+    if !isempty(opt_results)
+        @info "Best fitness across all trials: $(minimum(best_fitness.(opt_results)))"
+    end
 
     # Run model with best parameters
     @info "Running model with best parameters..."
@@ -214,25 +309,13 @@ function run_calibration(
     if calib_settings.use_scalers && length(optim_best) > 16
         n_grps = CoralFlow.n_groups(reef_state)
 
-        # Extract and apply scalers
         scaler_start = 17
         scaler_end = 17 + n_grps - 1
         loc_scalers = optim_best[scaler_start:scaler_end]
         CoralFlow.assign_scalers!(reef_state, loc_scalers)
 
-        # Extract recruitment parameters
         recruitment_proportion = optim_best[scaler_end + 1]
         self_seeding_proportion = optim_best[scaler_end + 2]
-
-        # Apply DHW tolerances if present
-        dhw_tols = extract_dhw_tolerances(optim_best, n_grps)
-        if !isnothing(dhw_tols)
-            dhw_means, dhw_stds = dhw_tols
-            for grp in 1:n_grps
-                reef_state.wild_dhw_tolerances[1, :, grp, At(:mean)] .= dhw_means[grp]
-                reef_state.wild_dhw_tolerances[:, :, grp, At(:stdev)] .= dhw_stds[grp]
-            end
-        end
 
         CoralFlow.run_model!(
             reef_state, env_conditions;
@@ -244,7 +327,7 @@ function run_calibration(
         CoralFlow.run_model!(reef_state, env_conditions; rng=rng)
     end
 
-    # Calculate performance metrics for entire time series
+    # Calculate performance metrics
     cover = (CoralFlow.coral_cover(reef_state) ./ reef_config.area) * 100.0
     sim = cover[c_sim_indices]
     obs = reef_obs.MEAN_LIVE_CORAL[c_ref_indices]
@@ -272,22 +355,18 @@ function run_calibration(
     @info "Generating visualizations..."
     mkpath(file_paths.figure_dir)
 
-    # Main timeseries
     f_ts = CoralFlow.viz.timeseries(reef_state, env_conditions)
     save(
         joinpath(file_paths.figure_dir, "$(reef_config.reef_id)_calibrated_timeseries.png"),
-        f_ts;
-        px_per_unit=DPI
+        f_ts; px_per_unit=DPI
     )
 
-    # Run ensemble if tracked candidates available
     ensemble_res = nothing
     if !isempty(tracked_candidates)
         @info "Running ensemble with $(length(tracked_candidates)) candidates..."
-        suitable_params = hcat(tracked_candidates...)
+        suitable_params = hcat(collect(tracked_candidates)...)
         ensemble_res = CoralFlow.run_ensemble!(reef_state, env_conditions, suitable_params)
 
-        # Ensemble timeseries
         f_ensemble = CoralFlow.viz.ensemble_timeseries(
             reef_state, ensemble_res, env_conditions
         )
@@ -295,21 +374,20 @@ function run_calibration(
             joinpath(
                 file_paths.figure_dir, "$(reef_config.reef_id)_ensemble_timeseries.png"
             ),
-            f_ensemble;
-            px_per_unit=DPI
+            f_ensemble; px_per_unit=DPI
         )
     else
         @info "No ensemble candidates found!"
     end
 
-    # Calibration comparison plot (with ensemble if available)
-    f_calib = plot_calibration_results(
+    plot_calibration_results(
         reef_state, env_conditions, reef_obs, c_sim_indices, c_ref_indices,
-        v_sim_idx, v_ref_idx,
         sim_year_range, cover, reef_config.area, benthic_estimate,
         joinpath(
             file_paths.figure_dir, "$(reef_config.reef_id)_calibration_comparison.png"
         );
+        v_sim_indices=v_sim_idx,
+        v_ref_indices=v_ref_idx,
         ensemble_res=ensemble_res
     )
 
@@ -320,19 +398,20 @@ function run_calibration(
         results=res,
         best_params=optim_best,
         metrics=calib_metrics,
-        tracked_candidates=tracked_candidates,
-        tracked_fitnesses=tracked_fitnesses,
+        tracked_candidates=collect(tracked_candidates),
+        tracked_fitnesses=collect(tracked_fitnesses),
         trial_contribution=trial_contribution,
-        ensemble_res=ensemble_res
+        ensemble_res=ensemble_res,
+        n_trials=total_trials
     )
 end
 
-ensemble_data_dir = joinpath(OUTPUT_DIR, "ensemble")
+ensemble_data_dir = joinpath(OUTPUT_DIR, "ensemble", "offshore_north", "moore")
 mkpath(ensemble_data_dir)
 
-# Run calibration
 calibration_output = run_calibration(
-    reef_config, file_paths, opt_config, param_bounds, calib_settings
+    reef_config, file_paths, opt_config, param_bounds, calib_settings;
+    max_trials=5_000_000
 )
 
 output_path = joinpath(ensemble_data_dir, "$(reef_config.reef_id)_ensemble_output.dat")
@@ -341,8 +420,11 @@ serialize(output_path, calibration_output)
 ensemble_params = hcat(calibration_output.tracked_candidates...)
 ensemble_fitnesses = calibration_output.tracked_fitnesses
 
-# Could save found candidates to use as initial guess for later optimization runs
-serialize("./data/ensemble/16071S_initial_guess.dat", ensemble_params)
+# Save candidates as initial guess for the next calibration round
+serialize(
+    joinpath(ensemble_data_dir, "$(reef_config.reef_id)_initial_guess.dat"),
+    ensemble_params
+)
 
 n_params = size(ensemble_params, 1)
 n_cols = 5
@@ -360,13 +442,42 @@ identifiability_df[!, :range_ratio] .= round.(identifiability_df.range_ratio; di
 identifiability_df[!, :MAD] .= round.(identifiability_df.MAD; digits=3)
 identifiability_df[!, :rMAD] .= round.(identifiability_df.rMAD; digits=3)
 
-median_fitness = median(ensemble_fitnesses)
+# ── Save calibration summary CSVs ─────────────────────────────────────────────
+rid = reef_config.reef_id
+
+CSV.write(joinpath(ensemble_data_dir, "$(rid)_parameter_identifiability.csv"), identifiability_df)
+
+m = calibration_output.metrics
+perf_df = DataFrame(;
+    metric=["rmse", "pearson", "kendall", "bias_beta", "variability_alpha"],
+    value=round.([m.rmse, m.pearson, m.kendall, m.bias, m.variability]; digits=4)
+)
+CSV.write(joinpath(ensemble_data_dir, "$(rid)_calibration_performance.csv"), perf_df)
+
+fitness_df = DataFrame(;
+    statistic=["n", "min", "q25", "median", "q75", "max", "mean", "std"],
+    value=round.([
+        length(ensemble_fitnesses),
+        minimum(ensemble_fitnesses),
+        quantile(ensemble_fitnesses, 0.25),
+        median(ensemble_fitnesses),
+        quantile(ensemble_fitnesses, 0.75),
+        maximum(ensemble_fitnesses),
+        mean(ensemble_fitnesses),
+        std(ensemble_fitnesses)
+    ]; digits=4)
+)
+CSV.write(joinpath(ensemble_data_dir, "$(rid)_fitness_distribution.csv"), fitness_df)
+
+trial_df = DataFrame(; trial=1:length(calibration_output.trial_contribution), n_candidates=calibration_output.trial_contribution)
+CSV.write(joinpath(ensemble_data_dir, "$(rid)_trial_contribution.csv"), trial_df)
+
 f = Figure(; size=(1400, 300 * n_rows))
 for p in 1:n_params
     row = div(p - 1, n_cols) + 1
     col = mod(p - 1, n_cols) + 1
 
-    ax = Axis(
+    local ax = Axis(
         f[row, col];
         xlabel=ENSEMBLE_PARAM_NAMES[p],
         xlabelsize=16
@@ -377,12 +488,7 @@ for p in 1:n_params
     min_x, max_x = min_x - buffer, max_x + buffer
     min_y, max_y = median_fitness, maximum(ensemble_fitnesses) + 0.1
     background_rect = Rect2f(min_x, min_y, max_x - min_x, max_y - min_y)
-    poly!(
-        ax,
-        background_rect;
-        color=(:gray, 0.1),  # 30% opacity
-        strokewidth=0
-    )
+    poly!(ax, background_rect; color=(:gray, 0.1), strokewidth=0)
 
     hlines!(median_fitness; color=(:black, 0.5))
     scatter!(ax, ensemble_params[p, :], ensemble_fitnesses;
@@ -397,10 +503,8 @@ for p in 1:n_params
         k.x, k.y, k.density; levels=density_levels, linewidth=2, alpha=0.8, colormap=:plasma
     )
 
-    # Add metric text relative to bottom
     indicator = identifiability_df[p, :rMAD]
-    score_text = "rMAD: $(indicator)"
-    text!(ax, 0.5, 0.90; text=score_text, align=(:center, :bottom), space=:relative)
+    text!(ax, 0.5, 0.90; text="rMAD: $(indicator)", align=(:center, :bottom), space=:relative)
 
     ylims!(ax, 0, maximum(ensemble_fitnesses) + 0.1)
     xlims!(ax, min_x, max_x)

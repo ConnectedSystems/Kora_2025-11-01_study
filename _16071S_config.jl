@@ -7,7 +7,8 @@ reef_config = ReefConfig(;
     depth=9.0,  # Assumed average (12 + 5) / 2
     density=10,
     initial_proportions=[0.1f0, 0.4f0, 0.25f0, 0.05f0, 0.2f0],
-    exclude_years=[2018, 2020, 2022, 2023]  # two obs after bleaching and two years of ecorrap
+    exclude_years=[2018, 2020, 2022, 2023],  # two obs after bleaching and two years of ecorrap
+    disturbance_years=[2017]  # major bleaching event
 )
 
 file_paths = CalibrationDataPaths(;
