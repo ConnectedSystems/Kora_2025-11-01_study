@@ -34,7 +34,7 @@ surv_ignore_cols = [
     :clarified_note_2021, :clarified_note_2022, :clarified_note_2023,
     :date_2021, :date_2022, :date_2023,
     :coral_cover_2021, :coral_cover_2022, :coral_cover_2023,
-    :est_1yo_growth
+    :est_1yo_growth, :growth_rate
 ]
 
 growth_ignore_cols = [
@@ -47,7 +47,7 @@ growth_ignore_cols = [
     :clarified_note_2021, :clarified_note_2022, :clarified_note_2023,
     :date_2021, :date_2022, :date_2023,
     :coral_cover_2021, :coral_cover_2022, :coral_cover_2023,
-    :est_1yo_growth
+    :est_1yo_growth, :growth_rate
 ]
 
 ENSEMBLE_PARAM_NAMES = [
@@ -93,7 +93,8 @@ function cleanup_features!(X::DataFrame)
 end
 
 const _DISPLAY_RENAMES = Dict(
-    :Cscape_group => :Functional_group,
+    :Cscape_group => :functional_group,
+    :diam_mort => :diameter,
     :temp => :temperature,
     :depth_cont => :depth,
     :plot_uid => :plot,
