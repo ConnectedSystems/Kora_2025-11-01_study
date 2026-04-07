@@ -22,12 +22,12 @@ Returns (g_bin, bin_details, per_bin_sample) where:
 function binned_sa(
     data::DataFrame,
     y_values::Vector,
-    diameter_col::Symbol;
+    diameters::Vector;
     n_bins::Int=10
 )
     n_obs = nrow(data)
     per_bin_sample = n_obs ÷ n_bins
-    bin_ids = CoralFlow.adaptive_min_sample_binning(data[!, diameter_col], per_bin_sample)
+    bin_ids = CoralFlow.adaptive_min_sample_binning(diameters, per_bin_sample)
 
     n_bins_actual = length(unique(bin_ids))
     g_bin = Matrix{Float64}(undef, n_bins_actual, ncol(data))
@@ -36,8 +36,8 @@ function binned_sa(
     for i in sort(unique(bin_ids))
         bin_sel = bin_ids .== i
 
-        bin_mean = mean(data[bin_sel, diameter_col])
-        (bin_start, bin_end) = extrema(data[bin_sel, diameter_col])
+        bin_mean = mean(diameters[bin_sel])
+        (bin_start, bin_end) = extrema(diameters[bin_sel])
         bin_details[i, :] .= bin_start, bin_mean, bin_end
 
         Si = pawn(data[bin_sel, :], y_values[bin_sel]; S=10)[PAWNᵢ=At(:median)]
@@ -69,18 +69,23 @@ function plot_sensitivity_heatmap(
 )
     n_bins = size(g_bin, 1)
 
+    # Sort features by mean influence across bins, most influential at top
+    order = sortperm(vec(median(g_bin; dims=1)))
+    g_bin_sorted = g_bin[:, order]
+    feature_names_sorted = feature_names[order]
+
     f = Figure(; size=(800, 600))
     ax = Axis(f[1, 1])
 
-    heatmap!(ax, g_bin)
+    heatmap!(ax, g_bin_sorted)
 
-    ax.yticks = (1:length(feature_names), feature_names)
+    ax.yticks = (1:length(feature_names_sorted), feature_names_sorted)
     ax.xticks = (1:n_bins, string.(round.(bin_details[:, 2]; digits=2)))
     ax.title = "$(titlecase(replace(region, "_" => " "))) - $(analysis_type)"
     ax.ylabel = "Factors"
     ax.xlabel = "Mean Diameter of Bin\n($(per_bin_sample) samples per bin)"
 
-    Colorbar(f[1, 2]; limits=(-0.1, max(maximum(g_bin), 1.0)), label="PAWN Index")
+    Colorbar(f[1, 2]; limits=(-0.1, max(maximum(g_bin_sorted), 1.0)), label="PAWN Index")
 
     return f
 end
@@ -92,14 +97,15 @@ Prepare growth data for sensitivity analysis.
 """
 function prepare_growth_data(model_results)
     all_growth = vcat(values(model_results.growth_groupings)...)
-    all_y_growth = all_growth.diamnext
+    all_y_growth = all_growth.est_1yo_growth
+    diameters = Float64.(all_growth.diam)
 
     ignore_cols = [g for g in growth_ignore_cols if g in propertynames(all_growth)]
     select!(all_growth, Not(ignore_cols))
     cleanup_features!(all_growth)
     rename_for_display!(all_growth)
 
-    return all_growth, all_y_growth
+    return all_growth, all_y_growth, diameters
 end
 
 """
@@ -112,13 +118,14 @@ function prepare_survival_data(model_results)
     all_y_surv = all_surv.surv
     all_y_surv[ismissing.(all_y_surv)] .= 0
     all_y_surv = Int64.(all_y_surv)
+    diameters = Float64.(all_surv.diam_mort)
 
     ignore_cols = [g for g in surv_ignore_cols if g in propertynames(all_surv)]
     select!(all_surv, Not(ignore_cols))
     cleanup_features!(all_surv)
     rename_for_display!(all_surv)
 
-    return all_surv, all_y_surv
+    return all_surv, all_y_surv, diameters
 end
 
 """
@@ -151,20 +158,20 @@ function process_region_sensitivity(
 
     # Prepare data
     @info "Preparing growth data..."
-    all_growth, all_y_growth = prepare_growth_data(model_results)
+    all_growth, all_y_growth, growth_diams = prepare_growth_data(model_results)
 
     @info "Preparing survival data..."
-    all_surv, all_y_surv = prepare_survival_data(model_results)
+    all_surv, all_y_surv, surv_diams = prepare_survival_data(model_results)
 
     # Perform sensitivity analyses
     @info "Analyzing growth sensitivity..."
     g_bin_growth, bin_details_growth, per_bin_sample_growth = binned_sa(
-        all_growth, all_y_growth, :diam; n_bins=n_bins
+        all_growth, all_y_growth, growth_diams; n_bins=n_bins
     )
 
     @info "Analyzing survival sensitivity..."
     g_bin_surv, bin_details_surv, per_bin_sample_surv = binned_sa(
-        all_surv, all_y_surv, :diam_mort; n_bins=n_bins
+        all_surv, all_y_surv, surv_diams; n_bins=n_bins
     )
 
     # Create plots
@@ -195,36 +202,39 @@ function process_region_sensitivity(
 end
 
 # Main analysis
-regions = ["offshore_north"]  # , "torres_strait"
-# EcoRRAP data for IPM_250624.csv
-# ecorrap_adult_juv_combined_2021_2023_24062025
-ecorrap_file = "../data/EcoRRAP data for IPM_250624.csv"
+# Each region uses its own EcoRRAP data file
+region_data = [
+    ("offshore_north", "../data/EcoRRAP data for IPM_250624.csv"),
+    ("torres_strait",  "../data/ecorrap_adult_juv_combined_2021_2023_24062025.csv"),
+]
 species_file = "../data/ecorrap to cscape species.csv"
 
 results = Dict{String,NamedTuple}()
 
-for region in regions
+for (region, ecorrap_file) in region_data
     results[region] = process_region_sensitivity(
         ecorrap_file, species_file, region; n_bins=10
     )
 end
 
 # Display figures
-for region in regions
+for (region, _) in region_data
     @info "Displaying results for $region"
     display(results[region].growth.figure)
     display(results[region].survival.figure)
 end
 
 # Save results
-for region in regions
+for (region, _) in region_data
+    region_overall_dir = joinpath(FIG_DIR, "sensitivity", region, "overall")
+    mkpath(region_overall_dir)
     save(
-        "$(FIG_DIR)/sensitivity/sensitivity_growth_$(region).png",
+        joinpath(region_overall_dir, "sensitivity_growth_$(region).png"),
         results[region].growth.figure;
         px_per_unit=DPI
     )
     save(
-        "$(FIG_DIR)/sensitivity/sensitivity_survival_$(region).png",
+        joinpath(region_overall_dir, "sensitivity_survival_$(region).png"),
         results[region].survival.figure;
         px_per_unit=DPI
     )

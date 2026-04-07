@@ -33,7 +33,7 @@ for reg_scale in region_scale
             human_scale_name = human_region_name
         end
 
-        fig_output = joinpath(FIG_DIR, "sensitivity", reg_scale)
+        fig_output = joinpath(FIG_DIR, "sensitivity", reg_scale, isnothing(rt) ? "overall" : rt)
         mkpath(fig_output)
 
         ##### Overall ####
@@ -47,7 +47,7 @@ for reg_scale in region_scale
         CSV.write(joinpath(reef_dir, scale_fn * "_growth.csv"), all_growth)
         CSV.write(joinpath(reef_dir, scale_fn * "_survival.csv"), all_surv)
 
-        all_y_growth = all_growth.diamnext
+        all_y_growth = all_growth.est_1yo_growth
         all_y_surv = all_surv.surv
         all_y_surv[ismissing.(all_y_surv), :] .= 0
         all_y_surv = Int64.(all_y_surv)
@@ -124,7 +124,7 @@ for reg_scale in region_scale
             group_title = CoralFlow.GROUP_NAMES[g_id]
 
             X_growth = copy(model_results.growth_groupings[taxa])
-            y_size = Float64.(model_results.growth_groupings[taxa].diamnext)
+            y_size = Float64.(model_results.growth_groupings[taxa].est_1yo_growth)
 
             X_surv = copy(model_results.survival_groupings[taxa])
             y_surv = try
