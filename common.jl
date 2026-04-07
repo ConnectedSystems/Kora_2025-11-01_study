@@ -109,6 +109,44 @@ function rename_for_display!(df::DataFrame)
     return df
 end
 
+"""
+    export_model_summaries(fits, output_dir, prefix)
+
+Save two CSV files to `output_dir`:
+  - `<prefix>_performance.csv`  — train/test metrics per group
+  - `<prefix>_coefficients.csv` — polynomial coefficients per group
+"""
+function export_model_summaries(fits, output_dir::String, prefix::String)
+    mkpath(output_dir)
+
+    # ── Performance ───────────────────────────────────────────────────────────
+    perf = fits.performance
+    metrics = keys(perf.train)  # e.g. (:RMSE, :R2, :pearson, :spearman, :kendall)
+
+    cols = Dict{Symbol, Vector}(:Group => collect(fits.names))
+    for m in metrics
+        cols[Symbol("Train_$(m)")] = collect(Float64.(perf.train[m]))
+        cols[Symbol("Test_$(m)")]  = collect(Float64.(perf.test[m]))
+    end
+
+    # Interleave Train/Test columns for readability
+    col_order = [:Group]
+    for m in metrics
+        push!(col_order, Symbol("Train_$(m)"), Symbol("Test_$(m)"))
+    end
+
+    perf_df = DataFrame(cols)[!, col_order]
+    CSV.write(joinpath(output_dir, "$(prefix)_performance.csv"), perf_df)
+
+    # ── Coefficients ──────────────────────────────────────────────────────────
+    polys = getfield.(fits.models, :poly)
+    coeff_df = DataFrame(;
+        Group=collect(fits.names),
+        Model=string.(polys)
+    )
+    CSV.write(joinpath(output_dir, "$(prefix)_coefficients.csv"), coeff_df)
+end
+
 include("src/sensitivity.jl")
 include("src/parameter_assessment.jl")
 include("src/calibration_structs.jl")
