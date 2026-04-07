@@ -46,4 +46,8 @@ for reef in reefs
         growth_results.growth_fits;
         save_path="./figs/regressions/$(region)/$(tgt_dir)"
     )
+
+    model_dir = "./$(OUTPUT_DIR)/$(region)/$(tgt_dir)"
+    export_model_summaries(growth_results.growth_fits,     model_dir, "$(region)_$(tgt_dir)_growth")
+    export_model_summaries(survival_results.survival_fits, model_dir, "$(region)_$(tgt_dir)_survival")
 end
