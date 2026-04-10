@@ -39,8 +39,7 @@ analysis to identify which parameters most influence model behaviour.
 Julia ≥ 1.11 is recommended. Install dependencies by activating the project and running:
 
 ```julia
-using Pkg
-Pkg.instantiate()
+] instantiate
 ```
 
 ### Key packages (declared in `common.jl`)
@@ -111,7 +110,7 @@ These files must be placed in the locations shown relative to the study folder.
 
 ## Workflow
 
-Scripts are numbered in execution order. Run each script from the `2025-11-01_study/` directory.
+Scripts are numbered in execution order. Run each script from the project root.
 Within each stage, `a` scripts produce data consumed by `b` scripts.
 
 ### Stage 0 — Data preparation
