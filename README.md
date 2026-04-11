@@ -15,8 +15,8 @@ Future efforts will incorporate the ensemble calibration and assessment process 
 This study calibrates and evaluates the [CoralFlow.jl](https://github.com/ConnectedSystems/CoralFlow.jl)
 individual-based coral reef model against field observations for two reefs:
 
-- **Moore Reef** (16071S) — Offshore North region, Great Barrier Reef
-- **Masig Reef** — Torres Strait region
+- **Moore Reef** (16071S): Offshore North region, Great Barrier Reef
+- **Masig Reef**: Torres Strait region
 
 A third reef (**11-162**, Far North) is calibrated without a full sensitivity assessment using
 regression models for the Offshore North region, not a reef-specific regression. It is not 
