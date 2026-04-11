@@ -832,10 +832,10 @@ function plot_calibration_results(
 
         bf_val_str = isnothing(v_bf_val_rmse) ? "" : " | Val RMSE: $(v_bf_val_rmse)"
         ens_val_str = isnothing(v_ens_val_rmse) ? "" : " | Val RMSE: $(v_ens_val_rmse)"
-        metrics_annotation = (
-            "Best Fit - Cal RMSE: $(c_bf_rmse)$(bf_val_str) | r_log: $(v_bf_pearson)\n" *
-            "Ensemble - Cal RMSE: $(c_rmse)$(ens_val_str) | r_log: $(mean_r_log)"
-        )
+        metrics_annotation = L"""
+            Best Fit - Cal RMSE: %$(c_bf_rmse)%$(bf_val_str) | $r_{\mathrm{log}}$: %$(v_bf_pearson)\\
+            Ensemble - Cal RMSE: %$(c_rmse)%$(ens_val_str) | $r_{\mathrm{log}}$: %$(mean_r_log)
+            """
     else
         bf_val_str = isnothing(v_bf_val_rmse) ? "" : " | Val RMSE: $(v_bf_val_rmse)"
         metrics_annotation = "Best Fit - Cal RMSE: $(c_bf_rmse)$(bf_val_str) | r_log: $(v_bf_pearson)"
