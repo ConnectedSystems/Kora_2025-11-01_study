@@ -347,7 +347,8 @@ end
     if !isempty(tracked_candidates)
         @info "Running ensemble with $(length(tracked_candidates)) candidates..."
         suitable_params = hcat(collect(tracked_candidates)...)
-        ensemble_res = CoralFlow.run_ensemble!(reef_state, env_conditions, suitable_params)
+        ensemble_rng = Random.seed!(opt_config.random_seed)
+        ensemble_res = CoralFlow.run_ensemble!(reef_state, env_conditions, suitable_params; rng=ensemble_rng)
 
         f_ensemble = CoralFlow.viz.ensemble_timeseries(
             reef_state, ensemble_res, env_conditions
