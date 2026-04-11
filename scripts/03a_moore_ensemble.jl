@@ -185,7 +185,7 @@ end
     calib_benthic_data = benthic_estimate[benthic_estimate.year .∈ Ref(aligned_years), :]
 
     if isempty(calib_benthic_data)
-        throw(ValueError("Benthic observation years were empty!"))
+        throw(ArgumentError("Benthic observation years were empty!"))
     end
 
     ensemble_dir = joinpath(file_paths.output_dir, "ensemble", "offshore_north", "moore")
