@@ -3,12 +3,11 @@ Compile exploratory sensitivity analysis figures into composite paper plots.
 
 Requires 01a, 01b, and 01c to have been run first to produce the source PNGs.
 
-Produces five figures:
-  1. diameter_bins_comparison     — (A) Offshore North binned, (B) Torres Strait binned
-  2. SA_offshore_north_growth     — (A) Offshore North overall, (B) Moore Reef
-  3. SA_offshore_north_survival   — same for survival
-  4. SA_torres_strait_growth      — (A) Torres Strait overall, (B) Masig Reef
-  5. SA_torres_strait_survival    — same for survival
+Produces four figures:
+  1. SA_growth     — (A) Offshore North, (B) Torres Strait, (C) Moore Reef, (D) Masig Reef
+  2. SA_survival   — same layout for survival
+  3. SA_binned_growth    — (A) Offshore North binned, (B) Torres Strait binned
+  4. SA_binned_survival  — same for survival
 """
 
 include(joinpath(@__DIR__, "common.jl"))
@@ -58,65 +57,64 @@ end
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
 
-sa_dir = joinpath(FIG_DIR, "sensitivity")
-
-region_configs = [
-    (region="offshore_north", reef_id="moore",  reef_name="Moore"),
-    (region="torres_strait",  reef_id="masig",  reef_name="Masig"),
-]
-
+sa_dir     = joinpath(FIG_DIR, "sensitivity")
 output_dir = joinpath(sa_dir, "combined")
 mkpath(output_dir)
 
-# ── Figure 1: Diameter-bins comparison (Offshore North vs Torres Strait) ───────
+on_dir    = joinpath(sa_dir, "offshore_north")
+ts_dir    = joinpath(sa_dir, "torres_strait")
 
-bin_paths = [
-    joinpath(sa_dir, "offshore_north", "overall", "sensitivity_growth_offshore_north.png"),
-    joinpath(sa_dir, "torres_strait",  "overall", "sensitivity_growth_torres_strait.png"),
-]
-bin_labels = ["(A)", "(B)"]
+labels_4 = ["(A)", "(B)", "(C)", "(D)"]
+labels_2 = ["(A)", "(B)"]
 
-fig_bins_growth = compile_composite(bin_paths, bin_labels)
-display(fig_bins_growth)
-save(joinpath(output_dir, "diameter_bins_growth_comparison.png"), fig_bins_growth; px_per_unit=DPI)
+# ── Figure 1: Growth (regional + reef) ────────────────────────────────────────
 
-bin_surv_paths = [
-    joinpath(sa_dir, "offshore_north", "overall", "sensitivity_survival_offshore_north.png"),
-    joinpath(sa_dir, "torres_strait",  "overall", "sensitivity_survival_torres_strait.png"),
+growth_paths = [
+    joinpath(on_dir, "overall", "Si_offshore_north_growth_overall.png"),       # A
+    joinpath(ts_dir, "overall", "Si_torres_strait_growth_overall.png"),        # B
+    joinpath(on_dir, "moore",   "Si_offshore_north_moore_growth_overall.png"), # C
+    joinpath(ts_dir, "masig",   "Si_torres_strait_masig_growth_overall.png"),  # D
 ]
 
-fig_bins_surv = compile_composite(bin_surv_paths, bin_labels)
-display(fig_bins_surv)
-save(joinpath(output_dir, "diameter_bins_survival_comparison.png"), fig_bins_surv; px_per_unit=DPI)
+fig1 = compile_composite(growth_paths, labels_4)
+display(fig1)
+save(joinpath(output_dir, "SA_growth.png"), fig1; px_per_unit=DPI)
+@info "Saved Figure 1: SA_growth.png"
 
-@info "Saved diameter-bins comparison figures"
+# ── Figure 2: Survival (regional + reef) ──────────────────────────────────────
 
-# ── Figures 2–5: Region + reef composites (growth and survival) ────────────────
+surv_paths = [
+    joinpath(on_dir, "overall", "Si_offshore_north_survival_overall.png"),       # A
+    joinpath(ts_dir, "overall", "Si_torres_strait_survival_overall.png"),        # B
+    joinpath(on_dir, "moore",   "Si_offshore_north_moore_survival_overall.png"), # C
+    joinpath(ts_dir, "masig",   "Si_torres_strait_masig_survival_overall.png"),  # D
+]
 
-for (; region, reef_id, reef_name) in region_configs
-    region_dir = joinpath(sa_dir, region)
-    scale_fn   = "$(region)_$(reef_id)"
+fig2 = compile_composite(surv_paths, labels_4)
+display(fig2)
+save(joinpath(output_dir, "SA_survival.png"), fig2; px_per_unit=DPI)
+@info "Saved Figure 2: SA_survival.png"
 
-    growth_paths = [
-        joinpath(region_dir, "overall", "Si_$(region)_growth_overall.png"),    # (A) region overall
-        joinpath(region_dir, reef_id,   "Si_$(scale_fn)_growth_overall.png"),  # (B) reef-specific
-    ]
+# ── Figure 3: Binned growth analysis ──────────────────────────────────────────
 
-    surv_paths = [
-        joinpath(region_dir, "overall", "Si_$(region)_survival_overall.png"),
-        joinpath(region_dir, reef_id,   "Si_$(scale_fn)_survival_overall.png"),
-    ]
+binned_growth_paths = [
+    joinpath(on_dir, "overall", "sensitivity_growth_offshore_north.png"), # A
+    joinpath(ts_dir, "overall", "sensitivity_growth_torres_strait.png"),  # B
+]
 
-    labels = ["(A)", "(B)"]
+fig3 = compile_composite(binned_growth_paths, labels_2)
+display(fig3)
+save(joinpath(output_dir, "SA_binned_growth.png"), fig3; px_per_unit=DPI)
+@info "Saved Figure 3: SA_binned_growth.png"
 
-    fig_growth = compile_composite(growth_paths, labels)
-    fig_surv   = compile_composite(surv_paths,   labels)
+# ── Figure 4: Binned survival analysis ────────────────────────────────────────
 
-    display(fig_growth)
-    display(fig_surv)
+binned_surv_paths = [
+    joinpath(on_dir, "overall", "sensitivity_survival_offshore_north.png"), # A
+    joinpath(ts_dir, "overall", "sensitivity_survival_torres_strait.png"),  # B
+]
 
-    save(joinpath(output_dir, "SA_$(scale_fn)_growth_composite.png"),   fig_growth; px_per_unit=DPI)
-    save(joinpath(output_dir, "SA_$(scale_fn)_survival_composite.png"), fig_surv;   px_per_unit=DPI)
-
-    @info "Saved growth/survival composites for $(reef_name) ($(region))"
-end
+fig4 = compile_composite(binned_surv_paths, labels_2)
+display(fig4)
+save(joinpath(output_dir, "SA_binned_survival.png"), fig4; px_per_unit=DPI)
+@info "Saved Figure 4: SA_binned_survival.png"

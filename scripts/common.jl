@@ -95,6 +95,7 @@ end
 
 const _DISPLAY_RENAMES = Dict(
     :Cscape_group => :functional_group,
+    :diam      => :diameter,
     :diam_mort => :diameter,
     :temp => :temperature,
     :depth_cont => :depth,
@@ -108,6 +109,48 @@ function rename_for_display!(df::DataFrame)
     pairs = [old => new for (old, new) in _DISPLAY_RENAMES if old in cols]
     isempty(pairs) || rename!(df, pairs...)
     return df
+end
+
+"""
+    plot_pawn_heatmap(Si, title; fig_size)
+
+Create a PAWN sensitivity heatmap from a `pawn()` result slice (already filtered to
+desired stats via `[PAWNᵢ=At(...)]`), sorting factors by mean PAWN index so the
+most influential factor appears at the top.
+
+Axis labels are always set explicitly so factor names are never left to chance.
+"""
+function plot_pawn_heatmap(
+    Si::YAXArray,
+    title::String;
+    stats::Vector{Symbol}=[:mean, :std],
+    fig_size::Tuple{Int,Int}=(800, 286)
+)
+    # Sort factors by mean PAWN index — slice scalar At() to avoid At(vector) ambiguity
+    factor_order  = sortperm(collect(Si[PAWNᵢ=At(:mean)]); rev=true)
+    factor_labels = string.(collect(Si.axes[1]))[factor_order]
+
+    # Build data matrix by stacking individual stat slices (n_factors × n_stats)
+    data = hcat([collect(Si[PAWNᵢ=At(s)])[factor_order] for s in stats]...)
+    stat_labels = string.(stats)
+
+    f  = Figure(; size=fig_size)
+    ax = Axis(f[1, 1])
+    hm = heatmap!(ax, data; colorrange=(-0.1, max(maximum(data), 0.1)), colormap=:viridis)
+    Colorbar(f[1, 2], hm; label="PAWN Index")
+
+    ax.xticks             = (1:length(factor_labels), factor_labels)
+    ax.yticks             = (1:length(stat_labels),   stat_labels)
+    ax.yreversed          = true
+    ax.xticklabelrotation = π / 8
+    ax.xlabelsize         = 14
+    ax.ylabelsize         = 14
+    ax.xticklabelsize     = 12
+    ax.yticklabelsize     = 12
+    ax.titlesize          = 14
+    ax.title              = title
+
+    return f
 end
 
 """

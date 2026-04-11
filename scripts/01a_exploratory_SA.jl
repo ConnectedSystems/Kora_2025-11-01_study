@@ -4,6 +4,8 @@ Sensitivity analysis across factor space and regions
 
 include(joinpath(@__DIR__, "common.jl"))
 
+Random.seed!(42)
+
 """
     binned_sa(
         data::DataFrame,
@@ -40,7 +42,7 @@ function binned_sa(
         (bin_start, bin_end) = extrema(diameters[bin_sel])
         bin_details[i, :] .= bin_start, bin_mean, bin_end
 
-        Si = pawn(data[bin_sel, :], y_values[bin_sel]; S=10)[PAWNᵢ=At(:median)]
+        Si = pawn(data[bin_sel, :], y_values[bin_sel]; S=10)[PAWNᵢ=At(:mean)]
         g_bin[i, :] = Si
     end
 
@@ -70,7 +72,7 @@ function plot_sensitivity_heatmap(
     n_bins = size(g_bin, 1)
 
     # Sort features by mean influence across bins, most influential at top
-    order = sortperm(vec(median(g_bin; dims=1)))
+    order = sortperm(vec(mean(g_bin; dims=1)))
     g_bin_sorted = g_bin[:, order]
     feature_names_sorted = feature_names[order]
 

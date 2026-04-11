@@ -4,10 +4,12 @@ Exploratory sensitivity analysis for the offshore north region.
 
 include(joinpath(@__DIR__, "common.jl"))
 
+Random.seed!(42)
+
 region_scale = ["offshore_north"]
 reef_target = [nothing, "moore"]
 
-stats_of_interest = [:mean, :median, :std]
+stats_of_interest = [:mean, :std]
 for reg_scale in region_scale
     for rt in reef_target
         model_results = CoralFlow.process_ecorrap_models(
@@ -69,43 +71,16 @@ for reg_scale in region_scale
         rename_for_display!(all_growth)
         rename_for_display!(all_surv)
 
-        Si_growth = pawn(all_growth, all_y_growth; S=10)[PAWNᵢ=At(stats_of_interest)]
-        f, ax, sp = heatmap(
-            Si_growth[sortperm(Si_growth[PAWNᵢ=At(:median)]), :];
-            colorrange=(-0.1, maximum(Si_growth)), colormap=:viridis
-        )
-        ax.xlabelsize = 14
-        ax.ylabelsize = 14
-        ax.xticklabelsize = 12
-        ax.yticklabelsize = 12
-        ax.titlesize = 14
-        ax.xticklabelrotation = π / 8
-
-        ax.title = "Growth - $(human_scale_name)"
-
-        resize!(f, 800, 286)
+        Si_growth = pawn(all_growth, all_y_growth; S=10)
+        f = plot_pawn_heatmap(Si_growth, "Growth - $(human_scale_name)")
         save("$(fig_output)/Si_$(scale_fn)_growth_overall.png", f; px_per_unit=DPI)
 
         # Analysis indicate that for specific locales, diameter is an influential factor.
         # But this may differ between locales, need to do further analyses.
-        # At regional scales, dpeth, wave activity, size at mortality, and factors relating
+        # At regional scales, depth, wave activity, size at mortality, and factors relating
         # to position matter.
-        Si_surv = pawn(all_surv, convert.(Float64, all_y_surv); S=10)[PAWNᵢ=At(
-            stats_of_interest
-        )]
-        f, ax, sp = heatmap(Si_surv[sortperm(Si_surv[PAWNᵢ=At(:median)]), :];
-            colorrange=(-0.1, maximum(Si_surv)), colormap=:viridis
-        )
-        ax.xlabelsize = 14
-        ax.ylabelsize = 14
-        ax.xticklabelsize = 12
-        ax.yticklabelsize = 12
-        ax.titlesize = 14
-        ax.xticklabelrotation = π / 8
-
-        ax.title = "Survival - $(human_scale_name)"
-
-        resize!(f, 800, 286)
+        Si_surv = pawn(all_surv, convert.(Float64, all_y_surv); S=10)
+        f = plot_pawn_heatmap(Si_surv, "Survival - $(human_scale_name)")
         save("$(fig_output)/Si_$(scale_fn)_survival_overall.png", f; px_per_unit=DPI)
 
         #### Group-specific analyses ####
@@ -159,43 +134,16 @@ for reg_scale in region_scale
             rename_for_display!(X_surv)
             rename_for_display!(X_growth)
 
-            Si_growth = pawn(X_growth, y_size; S=10)[PAWNᵢ=At(stats_of_interest)]
-            f, ax, sp = heatmap(
-                Si_growth[sortperm(Si_growth[PAWNᵢ=At(:median)]), :];
-                colormap=:viridis, colorrange=(-0.1, maximum(Si_growth))
-            )
-            ax.title = "Growth - $(human_scale_name)\n$(group_title)"
-            ax.xlabelsize = 14
-            ax.ylabelsize = 14
-            ax.xticklabelsize = 12
-            ax.yticklabelsize = 12
-            ax.titlesize = 14
-            ax.xticklabelrotation = π / 8
-
-            resize!(f, 800, 286)
+            Si_growth = pawn(X_growth, y_size; S=10)
+            f = plot_pawn_heatmap(Si_growth, "Growth - $(human_scale_name)\n$(group_title)")
             push!(Si_growth_plots, f)
             push!(Si_growth_data, Si_growth)
             save("$(fig_output)/Si_$(scale_fn)_$(taxa)_growth.png", f; px_per_unit=DPI)
 
-            Si_surv = pawn(X_surv, convert.(Float64, y_surv); S=10)[PAWNᵢ=At(
-                stats_of_interest
-            )]
-            f, ax, sp = heatmap(
-                Si_surv[sortperm(Si_surv[PAWNᵢ=At(:median)]), :];
-                colormap=:viridis, colorrange=(-0.1, maximum(Si_surv))
-            )
-            ax.xlabelsize = 14
-            ax.ylabelsize = 14
-            ax.xticklabelsize = 12
-            ax.yticklabelsize = 12
-            ax.titlesize = 14
-            ax.xticklabelrotation = π / 8
-
-            ax.title = "Survival - $(human_scale_name)\n$(group_title)"
-            resize!(f, 800, 286)
+            Si_surv = pawn(X_surv, convert.(Float64, y_surv); S=10)
+            f = plot_pawn_heatmap(Si_surv, "Survival - $(human_scale_name)\n$(group_title)")
             push!(Si_surv_plots, f)
             push!(Si_surv_data, Si_surv)
-
             save("$(fig_output)/Si_$(scale_fn)_$(taxa)_survival.png", f; px_per_unit=DPI)
         end
     end
