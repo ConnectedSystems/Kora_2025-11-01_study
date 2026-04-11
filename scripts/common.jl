@@ -124,7 +124,8 @@ function plot_pawn_heatmap(
     Si::YAXArray,
     title::String;
     stats::Vector{Symbol}=[:mean, :std],
-    fig_size::Tuple{Int,Int}=(800, 286)
+    fig_size::Tuple{Int,Int}=(800, 286),
+    xticklabelrotation::Real=π / 8
 )
     # Sort factors by mean PAWN index — slice scalar At() to avoid At(vector) ambiguity
     factor_order  = sortperm(collect(Si[PAWNᵢ=At(:mean)]); rev=true)
@@ -142,7 +143,7 @@ function plot_pawn_heatmap(
     ax.xticks             = (1:length(factor_labels), factor_labels)
     ax.yticks             = (1:length(stat_labels),   stat_labels)
     ax.yreversed          = true
-    ax.xticklabelrotation = π / 8
+    ax.xticklabelrotation = xticklabelrotation
     ax.xlabelsize         = 14
     ax.ylabelsize         = 14
     ax.xticklabelsize     = 12

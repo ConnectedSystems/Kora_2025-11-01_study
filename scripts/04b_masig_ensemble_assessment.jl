@@ -104,13 +104,10 @@ if !isfile(fn_unconstrained_samples)
     unc_pawn_sa_results = pawn(unc_samples, unc_fitness_scores, ENSEMBLE_PARAM_NAMES)
     serialize(fn_unconstrained_pawn, unc_pawn_sa_results)
 
-    f, ax, sp = heatmap(
-        unc_pawn_sa_results[sortperm(unc_pawn_sa_results[PAWNᵢ=At(:median)]), :];
-        colormap=:viridis,
-        colorrange=(-0.1, maximum(unc_pawn_sa_results))
+    f = plot_pawn_heatmap(
+        unc_pawn_sa_results, "Unconstrained SA - $(reef_id)";
+        stats=[:mean, :std], xticklabelrotation=π / 2
     )
-    ax.xticklabelrotation[] = π / 2
-
     save(joinpath(ensemble_fig_dir, "$(reef_id)_unconstrained_sa.png"), f; px_per_unit=DPI)
 else
     unc_samples = deserialize(fn_unconstrained_samples)
@@ -150,13 +147,10 @@ if !isfile(fn_constrained_samples)
     cons_pawn_sa_results = pawn(cons_samples, cons_fitness_scores, ENSEMBLE_PARAM_NAMES)
     serialize(fn_constrained_pawn, cons_pawn_sa_results)
 
-    f, ax, sp = heatmap(
-        cons_pawn_sa_results[sortperm(cons_pawn_sa_results[PAWNᵢ=At(:median)]), :];
-        colormap=:viridis,
-        colorrange=(-0.1, maximum(cons_pawn_sa_results))
+    f = plot_pawn_heatmap(
+        cons_pawn_sa_results, "Constrained SA - $(reef_id)";
+        stats=[:mean, :std], xticklabelrotation=π / 2
     )
-    ax.xticklabelrotation[] = π / 2
-
     save(joinpath(ensemble_fig_dir, "$(reef_id)_constrained_sa.png"), f; px_per_unit=DPI)
 else
     cons_samples = deserialize(fn_constrained_samples)
@@ -197,7 +191,7 @@ save(joinpath(ensemble_fig_dir, "$(reef_id)_ensemble_corr_param_pairplot.png"), 
 
 # ── Identify most influential parameters from constrained PAWN ────────────────
 most_influential = collect(
-    sortperm(cons_pawn_sa_results[PAWNᵢ=At(:median)]; rev=true)[1:10]
+    sortperm(cons_pawn_sa_results[PAWNᵢ=At(:mean)]; rev=true)[1:10]
 )
 
 factor_names = collect(collect(cons_pawn_sa_results.factors[most_influential]))
@@ -239,7 +233,6 @@ posterior_samples = Matrix(ensemble_params')
 σ_posterior = vec(std(posterior_samples; dims=1))
 rel_reduction = (σ_prior .- σ_posterior) ./ σ_prior
 
-top3_reduced   = sortperm(rel_reduction; rev=true)[1:3]
 top3_sensitive = most_influential[1:3]
 
 function plot_uncertainty_panel!(ax, pidx, unc_samples, posterior_samples, rel_reduction)
@@ -263,23 +256,13 @@ function plot_uncertainty_panel!(ax, pidx, unc_samples, posterior_samples, rel_r
     )
 end
 
-fig_hist = Figure(; size=(1100, 600))
+fig_hist = Figure(; size=(1100, 350))
 
-Label(fig_hist[1, 0]; text="Greatest\nuncertainty\nreduction", tellheight=false, rotation=π/2, fontsize=13)
-Label(fig_hist[2, 0]; text="Most\nsensitive\n(PAWN)", tellheight=false, rotation=π/2, fontsize=13)
-
-for (col, pidx) in enumerate(top3_reduced)
-    local ax = Axis(
-        fig_hist[1, col];
-        xlabel=string(ENSEMBLE_PARAM_NAMES[pidx]),
-        ylabel=col == 1 ? "Density" : "",
-    )
-    plot_uncertainty_panel!(ax, pidx, unc_samples, posterior_samples, rel_reduction)
-end
+Label(fig_hist[1, 0]; text="Most\ninfluential\n(PAWN)", tellheight=false, rotation=π/2, fontsize=13)
 
 for (col, pidx) in enumerate(top3_sensitive)
     local ax = Axis(
-        fig_hist[2, col];
+        fig_hist[1, col];
         xlabel=string(ENSEMBLE_PARAM_NAMES[pidx]),
         ylabel=col == 1 ? "Density" : "",
     )
@@ -410,7 +393,7 @@ if !isfile(fn_temporal_pawn)
     @info "Computing temporal PAWN ($(n_params) params × $(n_sim_steps) timesteps)"
     for t in 1:n_sim_steps
         pawn_t = pawn(X, ts_outputs[:, t], ENSEMBLE_PARAM_NAMES)
-        temporal_pawn[:, t] = pawn_t[PAWNᵢ=At(:median)].data
+        temporal_pawn[:, t] = pawn_t[PAWNᵢ=At(:mean)].data
     end
 
     serialize(fn_temporal_pawn, temporal_pawn)
@@ -446,7 +429,7 @@ for yr in disturbance_years
     vlines!(ax_tsa, yr; color=(:red, 0.7), linewidth=1.5, linestyle=:dash)
 end
 
-Colorbar(fig_tsa[1, 2], hm; label="PAWN median index", width=14)
+Colorbar(fig_tsa[1, 2], hm; label="PAWN mean index", width=14)
 
 save(
     joinpath(ensemble_fig_dir, "$(reef_id)_temporal_pawn_heatmap.png"),
@@ -462,7 +445,7 @@ fig_lines = Figure(; size=(900, 400))
 ax_lines = Axis(
     fig_lines[1, 1];
     xlabel="Year",
-    ylabel="PAWN median index",
+    ylabel="PAWN mean index",
     title="Temporal sensitivity — top $(top_k) parameters"
 )
 
@@ -549,7 +532,7 @@ if !isfile(fn_lagged_pawn)
         @info "Computing lagged PAWN — $(lag_yr)-yr window ($(k) timesteps)"
         for t in 1:n_valid
             pawn_t = pawn(X, ts_outputs[:, t + k], ENSEMBLE_PARAM_NAMES)
-            lag_pawn[:, t] = pawn_t[PAWNᵢ=At(:median)].data
+            lag_pawn[:, t] = pawn_t[PAWNᵢ=At(:mean)].data
         end
 
         lagged_pawn_results[k] = lag_pawn
@@ -590,7 +573,7 @@ for (k, lag_yr) in zip(lags_ts, lags_yr)
         vlines!(ax_lag, yr; color=(:red, 0.7), linewidth=1.5, linestyle=:dash)
     end
 
-    Colorbar(fig_lag[1, 2], hm_lag; label="PAWN median index", width=14)
+    Colorbar(fig_lag[1, 2], hm_lag; label="PAWN mean index", width=14)
 
     save(
         joinpath(ensemble_fig_dir, "$(reef_id)_lagged_pawn_$(lag_yr)yr_heatmap.png"),
@@ -636,7 +619,7 @@ for g in axes(ts_outputs_bygroup, 3)
     pawn_g = Matrix{Float64}(undef, n_params, n_sim_steps)
     for t in 1:n_sim_steps
         pawn_t = pawn(X, ts_outputs_bygroup[:, t, g], ENSEMBLE_PARAM_NAMES)
-        pawn_g[:, t] = pawn_t[PAWNᵢ=At(:median)].data
+        pawn_g[:, t] = pawn_t[PAWNᵢ=At(:mean)].data
     end
 
     row_order_g = sortperm(vec(mean(pawn_g; dims=2)); rev=true)
@@ -660,7 +643,7 @@ for g in axes(ts_outputs_bygroup, 3)
     for yr in disturbance_years
         vlines!(ax_g, yr; color=(:red, 0.7), linewidth=1.5, linestyle=:dash)
     end
-    Colorbar(fig_g[1, 2], hm_g; label="PAWN median index", width=14)
+    Colorbar(fig_g[1, 2], hm_g; label="PAWN mean index", width=14)
     save(
         joinpath(
             ensemble_fig_dir, "$(reef_id)_temporal_pawn_$(group_names[g])_heatmap.png"
