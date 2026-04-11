@@ -266,9 +266,10 @@ figs/
   quantiles that are transformed via an internal `gamma_to_dirichlet` function to ensure they sum
   to 1. Do not interpret their raw values as proportions.
 
-- **The fitness metric is a composite score** combining RMSE-based terms (α, β), Pearson
-  correlation, an energy penalty, a low-cover penalty, and a rank score. Lower is better. The
-  exact formulation is in `src/calibration_helpers.jl`.
+- **The fitness metric is a composite score** equal to NKGE (normalised bias β, normalised
+  variability ratio α, and Pearson correlation term) plus an endpoint MAE penalty, a low-cover
+  penalty, and a benthic rank score. Lower is better. The exact formulation is in
+  `src/calibration_helpers.jl`.
 
 - **`n_workers = 20`** at the top of parallel scripts is hardware-specific. Set it to the number
   of physical cores available, minus one or two for the OS.
