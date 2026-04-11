@@ -2,7 +2,7 @@
 Sensitivity analysis across factor space and regions
 """
 
-include("common.jl")
+include(joinpath(@__DIR__, "common.jl"))
 
 """
     binned_sa(
@@ -204,10 +204,10 @@ end
 # Main analysis
 # Each region uses its own EcoRRAP data file
 region_data = [
-    ("offshore_north", "../data/EcoRRAP data for IPM_250624.csv"),
-    ("torres_strait",  "../data/ecorrap_adult_juv_combined_2021_2023_24062025.csv"),
+    ("offshore_north", joinpath(EXT_DATA_DIR, "EcoRRAP data for IPM_250624.csv")),
+    ("torres_strait",  joinpath(EXT_DATA_DIR, "ecorrap_adult_juv_combined_2021_2023_24062025.csv")),
 ]
-species_file = "../data/ecorrap to cscape species.csv"
+species_file = joinpath(OUTPUT_DIR, "ecorrap_to_cscape_species.csv")
 
 results = Dict{String,NamedTuple}()
 

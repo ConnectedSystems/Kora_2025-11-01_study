@@ -19,8 +19,9 @@ using CoralFlow
 
 Makie.inline!(true)
 
-OUTPUT_DIR = "data"
-FIG_DIR = "figs"
+OUTPUT_DIR = joinpath(@__DIR__, "..", "data")
+FIG_DIR = joinpath(@__DIR__, "..", "figs")
+EXT_DATA_DIR = joinpath(@__DIR__, "..", "..", "data")
 DPI = 300 / 96  # desired unit / pixels per inch
 
 # Unnecessary/correlated factors to remove
@@ -147,7 +148,7 @@ function export_model_summaries(fits, output_dir::String, prefix::String)
     CSV.write(joinpath(output_dir, "$(prefix)_coefficients.csv"), coeff_df)
 end
 
-include("src/sensitivity.jl")
-include("src/parameter_assessment.jl")
-include("src/calibration_structs.jl")
-include("src/calibration_helpers.jl")
+include(joinpath(@__DIR__, "..", "src", "sensitivity.jl"))
+include(joinpath(@__DIR__, "..", "src", "parameter_assessment.jl"))
+include(joinpath(@__DIR__, "..", "src", "calibration_structs.jl"))
+include(joinpath(@__DIR__, "..", "src", "calibration_helpers.jl"))

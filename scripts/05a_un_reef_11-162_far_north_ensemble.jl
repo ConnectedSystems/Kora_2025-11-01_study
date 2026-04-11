@@ -1,6 +1,6 @@
 using BlackBoxOptim
 
-include("common.jl")
+include(joinpath(@__DIR__, "common.jl"))
 
 # Configuration for Far North ensemble
 reef_config = ReefConfig(;
@@ -15,10 +15,10 @@ reef_config = ReefConfig(;
 )
 
 file_paths = CalibrationDataPaths(;
-    dhw_scenarios="$(OUTPUT_DIR)/dhw_scens.nc",
-    canonical_reefs="$(OUTPUT_DIR)/rrap_canonical_2025-07-15-T10-48-29.gpkg",
-    growth_models="$(OUTPUT_DIR)/offshore_north/overall/offshore_north_growth_models.dat",
-    survival_models="$(OUTPUT_DIR)/offshore_north/overall/offshore_north_survival_models.dat",
+    dhw_scenarios=joinpath(OUTPUT_DIR, "dhw_scens.nc"),
+    canonical_reefs=joinpath(OUTPUT_DIR, "rrap_canonical_2025-07-15-T10-48-29.gpkg"),
+    growth_models=joinpath(OUTPUT_DIR, "offshore_north", "overall", "offshore_north_growth_models.dat"),
+    survival_models=joinpath(OUTPUT_DIR, "offshore_north", "overall", "offshore_north_survival_models.dat"),
     output_dir=OUTPUT_DIR,
     figure_dir=FIG_DIR
 )
@@ -70,7 +70,7 @@ function run_calibration(
     # Load data
     @info "Loading reef observations..."
     reef_df = CSV.read(
-        "data/Reef 11-162_Benthic_line_chart_modelled_2025-12-22.csv", DataFrame
+        joinpath(OUTPUT_DIR, "Reef 11-162_Benthic_line_chart_modelled_2025-12-22.csv"), DataFrame
     )
     reef_obs = DataFrame(;
         SAMPLE_DATE=reef_df.report_year,
@@ -455,10 +455,10 @@ end
 
 Label(f[:, 0], "Metric Score"; rotation=π / 2, fontsize=18)
 
-save("$(FIG_DIR)/$(reef_config.reef_id)_calib_param_interactions.png", f; px_per_unit=DPI)
+save(joinpath(FIG_DIR, "$(reef_config.reef_id)_calib_param_interactions.png"), f; px_per_unit=DPI)
 
 reef_df = CSV.read(
-    "data/Reef 11-162_Benthic_line_chart_modelled_2025-12-22.csv", DataFrame
+    joinpath(OUTPUT_DIR, "Reef 11-162_Benthic_line_chart_modelled_2025-12-22.csv"), DataFrame
 )
 reef_obs = DataFrame(;
     SAMPLE_DATE=reef_df.report_year,

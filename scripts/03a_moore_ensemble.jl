@@ -3,14 +3,14 @@ using BlackBoxOptim
 using Serialization
 using DataStructures
 
-ENV["JULIA_DEPOT_PATH"] = "./data/jl_depot"
+ENV["JULIA_DEPOT_PATH"] = joinpath(@__DIR__, "..", "data", "jl_depot")
 
 n_workers = 20
 if length(workers()) >= n_workers
     rmprocs(workers())
 end
 
-addprocs(n_workers; exeflags="--project=@.")
+addprocs(n_workers; exeflags="--project=..")
 
 @everywhere begin
     using BlackBoxOptim
@@ -21,8 +21,8 @@ addprocs(n_workers; exeflags="--project=@.")
     using Random
     using Serialization
 
-    include("common.jl")
-    include("_16071S_config.jl")
+    include(joinpath(@__DIR__, "common.jl"))
+    include(joinpath(@__DIR__, "_16071S_config.jl"))
 
     using CoralFlow
 end
@@ -111,7 +111,7 @@ end
     # Load data
     @info "Loading reef observations..."
     reef_df = CSV.read(
-        "$(OUTPUT_DIR)/Moore Reef_Manta Tow_line_chart_modelled_2025-12-28.csv", DataFrame
+        joinpath(OUTPUT_DIR, "Moore Reef_Manta Tow_line_chart_modelled_2025-12-28.csv"), DataFrame
     )
     reef_obs = DataFrame(;
         SAMPLE_DATE=reef_df.report_year,
@@ -124,12 +124,12 @@ end
     ltmp_start_year = Year(Date(reef_obs.SAMPLE_DATE[3])).value  # start 1994
     ltmp_end_year = Year(Date(reef_obs.SAMPLE_DATE[end])).value
 
-    benthic_estimate = CSV.read("$(OUTPUT_DIR)/ecorrap_benthic/moore_estimate.csv", DataFrame)
+    benthic_estimate = CSV.read(joinpath(OUTPUT_DIR, "ecorrap_benthic", "moore_estimate.csv"), DataFrame)
 
     sim_start_year = ltmp_start_year
     sim_end_year = benthic_estimate.year[end]
 
-    historic_dhw = CSV.read("$(OUTPUT_DIR)/dhw/DHW_Moore_Reef.csv", DataFrame)
+    historic_dhw = CSV.read(joinpath(OUTPUT_DIR, "dhw", "DHW_Moore_Reef.csv"), DataFrame)
     historic_dhw = historic_dhw[historic_dhw.year .∈ Ref(sim_start_year:sim_end_year), "dhw"]
 
     # Load models
@@ -512,4 +512,4 @@ end
 
 Label(f[:, 0], "Metric Score"; rotation=π / 2, fontsize=18)
 
-save("$(FIG_DIR)/$(reef_config.reef_id)_calib_param_interactions.png", f; px_per_unit=DPI)
+save(joinpath(FIG_DIR, "$(reef_config.reef_id)_calib_param_interactions.png"), f; px_per_unit=DPI)

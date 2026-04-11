@@ -3,14 +3,14 @@ using BlackBoxOptim
 using Serialization
 using DataStructures
 
-ENV["JULIA_DEPOT_PATH"] = "./data/jl_depot"
+ENV["JULIA_DEPOT_PATH"] = joinpath(@__DIR__, "..", "data", "jl_depot")
 
 n_workers = 20
 if length(workers()) >= n_workers
     rmprocs(workers())
 end
 
-addprocs(n_workers; exeflags="--project=@.")
+addprocs(n_workers; exeflags="--project=..")
 
 @everywhere begin
     using BlackBoxOptim
@@ -21,8 +21,8 @@ addprocs(n_workers; exeflags="--project=@.")
     using Random
     using Serialization
 
-    include("common.jl")
-    include("_masig_config.jl")
+    include(joinpath(@__DIR__, "common.jl"))
+    include(joinpath(@__DIR__, "_masig_config.jl"))
 
     using CoralFlow
 end
@@ -109,7 +109,7 @@ end
     @info "Starting parallel ensemble search for $(reef_config.reef_name) ($(reef_config.reef_id))"
 
     @info "Loading reef observations..."
-    reef_df = CSV.read(joinpath("./data", "Masig_Reef_EcoRRAP_estimate.csv"), DataFrame)
+    reef_df = CSV.read(joinpath(OUTPUT_DIR, "Masig_Reef_EcoRRAP_estimate.csv"), DataFrame)
     reef_obs = DataFrame(;
         SAMPLE_DATE=reef_df.report_year,
         MEAN_LIVE_CORAL=reef_df.mean,
@@ -117,12 +117,12 @@ end
         UPPER=reef_df.upper
     )
 
-    benthic_estimate = CSV.read("$(OUTPUT_DIR)/ecorrap_benthic/masig_estimate.csv", DataFrame)
+    benthic_estimate = CSV.read(joinpath(OUTPUT_DIR, "ecorrap_benthic", "masig_estimate.csv"), DataFrame)
     sim_start_year = benthic_estimate.year[1]
     sim_end_year = benthic_estimate.year[end]
 
     @info "Loading environmental data..."
-    historic_dhw = CSV.read("$(OUTPUT_DIR)/dhw/DHW_Masig_Reef.csv", DataFrame)
+    historic_dhw = CSV.read(joinpath(OUTPUT_DIR, "dhw", "DHW_Masig_Reef.csv"), DataFrame)
     historic_dhw = historic_dhw[historic_dhw.year .∈ Ref(sim_start_year:sim_end_year), "dhw"]
 
     @info "Loading growth and survival models..."
@@ -492,4 +492,4 @@ end
 
 Label(f[:, 0], "Metric Score"; rotation=π / 2, fontsize=18)
 
-save("$(FIG_DIR)/$(reef_config.reef_id)_calib_param_interactions.png", f; px_per_unit=DPI)
+save(joinpath(FIG_DIR, "$(reef_config.reef_id)_calib_param_interactions.png"), f; px_per_unit=DPI)

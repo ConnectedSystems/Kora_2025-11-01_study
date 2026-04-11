@@ -1,7 +1,14 @@
 using BlackBoxOptim
 using PairPlots
 
-include("common.jl")
+include(joinpath(@__DIR__, "common.jl"))
+
+# Calibration settings
+calib_settings = CalibrationSettings(;
+    date_match_max_days=120,
+    start_month=3,
+    use_scalers=true
+)
 
 param_bounds = (;
     density=(1.0, 10.0),
@@ -53,7 +60,7 @@ corr_df = parameter_correlation_analysis(
     ensemble_params, ENSEMBLE_PARAM_NAMES; corr_threshold=0.4
 )
 corr_df[!, :Correlation] .= round.(corr_df.Correlation; digits=3)
-CSV.write("$(ensemble_dir)/$(reef_id)_parameter_correlations.csv", corr_df)
+CSV.write(joinpath(ensemble_dir, "$(reef_id)_parameter_correlations.csv"), corr_df)
 
 pawn_sa_results = pawn(ensemble_params', un_reef_ensemble.fitnesses, ENSEMBLE_PARAM_NAMES)
 
@@ -90,7 +97,7 @@ if !isfile(fn_unconstrained_samples)
 
     # Load data
     reef_df = CSV.read(
-        "data/Reef $(reef_id)_Benthic_line_chart_modelled_2025-12-22.csv", DataFrame
+        joinpath(OUTPUT_DIR, "Reef $(reef_id)_Benthic_line_chart_modelled_2025-12-22.csv"), DataFrame
     )
     reef_obs = DataFrame(; SAMPLE_DATE=reef_df.report_year, MEAN_LIVE_CORAL=reef_df.median)
 
@@ -236,7 +243,7 @@ f = pairplot(
 autolimits!()
 resize_to_layout!(f)
 sleep(5)
-save("$(ensemble_fig_dir)/$(reef_id)_ensemble_corr_param_pairplot.png", f; px_per_unit=DPI)
+save(joinpath(ensemble_fig_dir, "$(reef_id)_ensemble_corr_param_pairplot.png"), f; px_per_unit=DPI)
 
 cons_pawn_sa_results[
     sortperm(cons_pawn_sa_results[PAWNᵢ=At(:median)]; rev=true), At(:median)
@@ -275,5 +282,5 @@ autolimits!()
 resize_to_layout!(f)
 sleep(5)  # Ensure figure generates completely before saving
 save(
-    "$(ensemble_fig_dir)/$(reef_id)_cons_ensemble_sa_param_pairplot.png", f; px_per_unit=DPI
+    joinpath(ensemble_fig_dir, "$(reef_id)_cons_ensemble_sa_param_pairplot.png"), f; px_per_unit=DPI
 )

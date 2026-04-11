@@ -1,22 +1,22 @@
 """
-Exploratory sensitivity analysis for the offshore north region.
+Exploratory sensitivity analysis for the Torres Strait region.
 """
 
-include("common.jl")
+include(joinpath(@__DIR__, "common.jl"))
 
-region_scale = ["offshore_north"]
-reef_target = [nothing, "moore"]
+region_scale = ["torres_strait"]
+reef_target = [nothing, "masig"]
 
 stats_of_interest = [:mean, :median, :std]
 for reg_scale in region_scale
     for rt in reef_target
         model_results = CoralFlow.process_ecorrap_models(
-            "../data/EcoRRAP data for IPM_250624.csv",
-            "data/ecorrap_to_cscape_species.csv";
+            joinpath(EXT_DATA_DIR, "ecorrap_adult_juv_combined_2021_2023_24062025.csv"),
+            joinpath(OUTPUT_DIR, "ecorrap_to_cscape_species.csv");
             region=reg_scale,
             reef=rt,
             save_models=true,
-            output_dir="./$(OUTPUT_DIR)/$(reg_scale)/$(isnothing(rt) ? "overall" : rt)",
+            output_dir=joinpath(OUTPUT_DIR, reg_scale, isnothing(rt) ? "overall" : rt),
             plot_validation=false,
             growth_degree=1,
             survival_degree=2,
@@ -80,7 +80,6 @@ for reg_scale in region_scale
         ax.yticklabelsize = 12
         ax.titlesize = 14
         ax.xticklabelrotation = π / 8
-
         ax.title = "Growth - $(human_scale_name)"
 
         resize!(f, 800, 286)
@@ -88,8 +87,8 @@ for reg_scale in region_scale
 
         # Analysis indicate that for specific locales, diameter is an influential factor.
         # But this may differ between locales, need to do further analyses.
-        # At regional scales, dpeth, wave activity, size at mortality, and factors relating
-        # to position matter.
+        # At regional scales, dpeth, wave activity, size at mortality, and factors relating to position
+        # matter.
         Si_surv = pawn(all_surv, convert.(Float64, all_y_surv); S=10)[PAWNᵢ=At(
             stats_of_interest
         )]
@@ -102,7 +101,6 @@ for reg_scale in region_scale
         ax.yticklabelsize = 12
         ax.titlesize = 14
         ax.xticklabelrotation = π / 8
-
         ax.title = "Survival - $(human_scale_name)"
 
         resize!(f, 800, 286)
@@ -164,13 +162,13 @@ for reg_scale in region_scale
                 Si_growth[sortperm(Si_growth[PAWNᵢ=At(:median)]), :];
                 colormap=:viridis, colorrange=(-0.1, maximum(Si_growth))
             )
-            ax.title = "Growth - $(human_scale_name)\n$(group_title)"
             ax.xlabelsize = 14
             ax.ylabelsize = 14
             ax.xticklabelsize = 12
             ax.yticklabelsize = 12
             ax.titlesize = 14
             ax.xticklabelrotation = π / 8
+            ax.title = "Growth - $(human_scale_name)\n$(group_title)"
 
             resize!(f, 800, 286)
             push!(Si_growth_plots, f)
@@ -184,6 +182,7 @@ for reg_scale in region_scale
                 Si_surv[sortperm(Si_surv[PAWNᵢ=At(:median)]), :];
                 colormap=:viridis, colorrange=(-0.1, maximum(Si_surv))
             )
+            ax.title = "Survival - $(human_scale_name)\n$(group_title)"
             ax.xlabelsize = 14
             ax.ylabelsize = 14
             ax.xticklabelsize = 12
@@ -191,7 +190,6 @@ for reg_scale in region_scale
             ax.titlesize = 14
             ax.xticklabelrotation = π / 8
 
-            ax.title = "Survival - $(human_scale_name)\n$(group_title)"
             resize!(f, 800, 286)
             push!(Si_surv_plots, f)
             push!(Si_surv_data, Si_surv)

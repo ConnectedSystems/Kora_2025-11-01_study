@@ -3,13 +3,15 @@ using DataFrames
 using Statistics
 using CairoMakie
 
+OUTPUT_DIR = joinpath(@__DIR__, "..", "data")
+
 df = CSV.read(
-    "data/ecorrap_benthic/EcoRRAP_Benthic_Data_Moore_TorresStrait_2026-01-21.csv",
+    joinpath(OUTPUT_DIR, "ecorrap_benthic", "EcoRRAP_Benthic_Data_Moore_TorresStrait_2026-01-21.csv"),
     DataFrame
 )
 
 mapping_df = CSV.read(
-    "data/ecorrap_benthic/EcoRRAP_Labelset_mapping_Maren_Toor_2026-01-20.csv",
+    joinpath(OUTPUT_DIR, "ecorrap_benthic", "EcoRRAP_Labelset_mapping_Maren_Toor_2026-01-20.csv"),
     DataFrame;
     missingstring="NA"
 )
@@ -68,7 +70,7 @@ group_order = [
 ]
 mean_cover = mean_cover[:, ["year", group_order...]]
 
-CSV.write("data/ecorrap_benthic/moore_estimate.csv", mean_cover)
+CSV.write(joinpath(OUTPUT_DIR, "ecorrap_benthic", "moore_estimate.csv"), mean_cover)
 
 ## Repeat to extract data for Masig Reef!
 target_site = "TSMA"
@@ -114,7 +116,7 @@ end
 # Reorder so that groups are in consistent order
 mean_cover = mean_cover[:, ["year", group_order...]]
 
-CSV.write("data/ecorrap_benthic/masig_estimate.csv", mean_cover)
+CSV.write(joinpath(OUTPUT_DIR, "ecorrap_benthic", "masig_estimate.csv"), mean_cover)
 
 benthic_cover = DataFrame(;
     report_year=mean_cover.year,
@@ -123,4 +125,4 @@ benthic_cover = DataFrame(;
     upper=map(sum, eachrow(mean_cover[:, 2:end]))
 )
 
-CSV.write("data/Masig_Reef_EcoRRAP_estimate.csv", benthic_cover)
+CSV.write(joinpath(OUTPUT_DIR, "Masig_Reef_EcoRRAP_estimate.csv"), benthic_cover)

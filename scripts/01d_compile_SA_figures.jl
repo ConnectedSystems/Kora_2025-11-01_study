@@ -11,7 +11,7 @@ Produces five figures:
   5. SA_torres_strait_survival    — same for survival
 """
 
-include("common.jl")
+include(joinpath(@__DIR__, "common.jl"))
 using FileIO
 
 # ── Helper ─────────────────────────────────────────────────────────────────────
