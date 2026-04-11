@@ -218,7 +218,7 @@ script pair following the existing pattern.
 
 ---
 
-## Iterative calibration
+## Iterative (multi-start ensemble) calibration
 
 The `03a`/`04a`/`05a` scripts implement a deliberate multi-round workflow:
 
@@ -232,6 +232,8 @@ The `03a`/`04a`/`05a` scripts implement a deliberate multi-round workflow:
 
 To force a fresh run, delete or rename the `.dat` files in the relevant
 `data/ensemble/<region>/<reef>/` directory.
+
+Future improvements will aim to automate the process.
 
 ---
 
