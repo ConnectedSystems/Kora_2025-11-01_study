@@ -69,9 +69,9 @@ running any scripts.
 
 ### Restricted data (not publicly available)
 
-These files were provided under data sharing arrangements and cannot be redistributed. They are
-expected one directory **above** the study folder (i.e. alongside the `2025-11-01_study/`
-directory, at `../data/` relative to the scripts).
+These files were provided under data sharing arrangements and cannot be redistributed. They 
+are expected one directory **above** the study folder (i.e. alongside the project directory, 
+at `../data/` relative to the study root).
 
 | File | Source |
 |---|---|
@@ -85,6 +85,23 @@ The first incorporates juvenile quadrat data from:
 
 The second dataset was collated by Dr. Anna Cresswell (Australian Institute of Marine Science)
 and can be provided on request.
+
+#### Processed outputs derived from restricted data
+
+The following files - produced by stages 1 and 2 from the restricted inputs above - are
+included in this repository. **Stages 3 - 5 (calibration and assessment) can therefore be 
+run without access to the raw restricted data.**
+
+| Location | Contents |
+|---|---|
+| `data/offshore_north/overall/` | `offshore_north_growth.csv`, `offshore_north_survival.csv`, `*_growth_models.dat`, `*_survival_models.dat` |
+| `data/offshore_north/moore/` | `offshore_north_moore_growth.csv`, `offshore_north_moore_survival.csv`, `*_growth_models.dat`, `*_survival_models.dat` |
+| `data/torres_strait/overall/` | `torres_strait_growth.csv`, `torres_strait_survival.csv`, `*_growth_models.dat`, `*_survival_models.dat` |
+| `data/torres_strait/masig/` | `torres_strait_masig_growth.csv`, `torres_strait_masig_survival.csv`, `*_growth_models.dat`, `*_survival_models.dat` |
+
+The `*_models.dat` files are the fitted growth and survival regression models consumed by
+the calibration scripts. The `*_growth.csv` / `*_survival.csv` files are the pre-processed
+individual-level training data used to fit them.
 
 The [Canonical Reefs](https://github.com/gbrrestoration/canonical-reefs) dataset is used to 
 identify reefs of interest by their UNIQUE IDs.
@@ -110,50 +127,66 @@ These files must be placed in the locations shown relative to the study folder.
 
 ## Workflow
 
-Scripts are numbered in execution order. Run each script from the project root.
+Scripts are in the `scripts/` subdirectory and numbered in execution order.
+**Run all scripts from within `scripts/`:**
+
+If running directly from the command line:
+
+```
+cd scripts
+julia --project=.. 00_prep_ecorrap_data.jl
+```
+
+or via the REPL (from the project root):
+
+```
+; cd scripts
+include("00_prep_ecorrap_data.jl")
+```
+
 Within each stage, `a` scripts produce data consumed by `b` scripts.
 
-### Stage 0 — Data preparation
+### Stage 0: Data preparation
 
 | Script | Inputs | Key outputs | Notes |
 |---|---|---|---|
-| `00_prep_ecorrap_data.jl` | `data/ecorrap_benthic/EcoRRAP_Benthic_Data_*.csv`, labelset mapping | `data/ecorrap_benthic/moore_estimate.csv`, `masig_estimate.csv`, `data/Masig_Reef_EcoRRAP_estimate.csv` | Aggregates EcoRRAP point-intercept transect data into annual mean cover by functional group for each site |
+| `scripts/00_prep_ecorrap_data.jl` | `data/ecorrap_benthic/EcoRRAP_Benthic_Data_*.csv`, labelset mapping | `data/ecorrap_benthic/moore_estimate.csv`, `masig_estimate.csv`, `data/Masig_Reef_EcoRRAP_estimate.csv` | Aggregates EcoRRAP point-intercept transect data into annual mean cover by functional group for each site |
 
-### Stage 1 — Exploratory sensitivity analysis of growth/survival functions
-
-| Script | Inputs | Key outputs | Notes |
-|---|---|---|---|
-| `01a_exploratory_SA.jl` | EcoRRAP IPM data CSV | `figs/sensitivity/` PAWN heatmaps | Region-wide SA; helper functions used by `01b`/`01c` |
-| `01b_exploratory_SA_offshore_north.jl` | EcoRRAP data | `data/offshore_north/{overall,moore}/` CSVs + model `.dat` files, `figs/sensitivity/offshore_north/` | Fits and evaluates growth/survival models for offshore north region and Moore Reef |
-| `01c_exploratory_SA_torres_strait.jl` | EcoRRAP data | `data/torres_strait/{overall,masig,...}/` CSVs + model `.dat` files, `figs/sensitivity/torres_strait/` | Same for Torres Strait |
-
-### Stage 2 — Regression model fitting (diameter-based)
+### Stage 1: Exploratory sensitivity analysis of growth/survival functions
 
 | Script | Inputs | Key outputs | Notes |
 |---|---|---|---|
-| `02a_offshore_north_fit_to_diameter.jl` | EcoRRAP data | `data/offshore_north/{overall,moore}/*_models.dat`, `figs/regressions/offshore_north/` | Fits final growth (degree-1) and survival (degree-2) polynomial regressions; **these `.dat` files are the models used in calibration** |
-| `02b_torres_strait_fit_to_diameter.jl` | EcoRRAP data | `data/torres_strait/{overall,masig}/*_models.dat`, `figs/regressions/torres_strait/` | Same for Torres Strait |
+| `scripts/01a_exploratory_SA.jl` | EcoRRAP IPM data CSV | `figs/sensitivity/` PAWN heatmaps | Region-wide SA; helper functions used by `01b`/`01c` |
+| `scripts/01b_exploratory_SA_offshore_north.jl` | EcoRRAP data | `data/offshore_north/{overall,moore}/` CSVs + model `.dat` files, `figs/sensitivity/offshore_north/` | Fits and evaluates growth/survival models for offshore north region and Moore Reef |
+| `scripts/01c_exploratory_SA_torres_strait.jl` | EcoRRAP data | `data/torres_strait/{overall,masig,...}/` CSVs + model `.dat` files, `figs/sensitivity/torres_strait/` | Same for Torres Strait |
 
-### Stage 3 — Moore Reef ensemble calibration and assessment
-
-| Script | Inputs | Key outputs | Notes |
-|---|---|---|---|
-| `03a_moore_ensemble.jl` | Config `_16071S_config.jl`, model `.dat` files, LTMP manta tow CSV, DHW CSV | `data/ensemble/offshore_north/moore/16071S_*.dat`, calibration figures in `figs/`, summary CSVs | Runs parallel multi-start ensemble calibration; see [Iterative calibration](#iterative-calibration) |
-| `03b_moore_ensemble_assessment.jl` | Output of `03a`, LTMP data, EcoRRAP benthic estimate | `data/sensitivity/offshore_north/moore/ensemble/16071S_*.dat`, `data/ensemble/offshore_north/moore/16071S_parameter_correlations.csv`, sensitivity figures | Unconstrained and ensemble-constrained PAWN SA; temporal and lagged sensitivity analysis |
-
-### Stage 4 — Masig Reef ensemble calibration and assessment
+### Stage 2: Regression model fitting (diameter-based)
 
 | Script | Inputs | Key outputs | Notes |
 |---|---|---|---|
-| `04a_masig_torres_strait_ensemble.jl` | Config `_masig_config.jl`, model `.dat` files, EcoRRAP benthic CSV, DHW CSV | `data/ensemble/torres_strait/masig/masig_*.dat`, calibration figures, summary CSVs | Same parallel calibration workflow as `03a` |
-| `04b_masig_ensemble_assessment.jl` | Output of `04a`, EcoRRAP benthic CSV | `data/sensitivity/torres_strait/masig/ensemble/masig_*.dat`, `data/ensemble/torres_strait/masig/masig_parameter_correlations.csv`, sensitivity figures | Same SA workflow as `03b` |
+| `scripts/02a_offshore_north_fit_to_diameter.jl` | EcoRRAP data | `data/offshore_north/{overall,moore}/*_models.dat`, `figs/regressions/offshore_north/` | Fits final growth (degree-1) and survival (degree-2) polynomial regressions; **these `.dat` files are the models used in calibration** |
+| `scripts/02b_torres_strait_fit_to_diameter.jl` | EcoRRAP data | `data/torres_strait/{overall,masig}/*_models.dat`, `figs/regressions/torres_strait/` | Same for Torres Strait |
 
-### Stage 5 — Reef 11-162 (Far North) ensemble calibration and assessment
+### Stage 3: Moore Reef ensemble calibration and assessment
 
 | Script | Inputs | Key outputs | Notes |
 |---|---|---|---|
-| `05a_un_reef_11-162_far_north_ensemble.jl` | Inline config (no separate config file), `data/offshore_north/overall/*_models.dat`, LTMP benthic CSV, DHW CSV | `data/ensemble/offshore_north/11-162/11-162_*.dat`, calibration figures | Calibration only; uses region-level (overall) models, not reef-specific ones |
-| `05b_un_reef_11-162_far_north_ensemble_assessment.jl` | Output of `05a` | `data/sensitivity/offshore_north/11-162/ensemble/`, figures | Sensitivity assessment; no temporal analysis (shorter time series) |
+| `scripts/03a_moore_ensemble.jl` | Config `scripts/_16071S_config.jl`, model `.dat` files, LTMP manta tow CSV, DHW CSV | `data/ensemble/offshore_north/moore/16071S_*.dat`, calibration figures in `figs/`, summary CSVs | Runs parallel multi-start ensemble calibration; see [Iterative calibration](#iterative-calibration) |
+| `scripts/03b_moore_ensemble_assessment.jl` | Output of `03a`, LTMP data, EcoRRAP benthic estimate | `data/sensitivity/offshore_north/moore/ensemble/16071S_*.dat`, `data/ensemble/offshore_north/moore/16071S_parameter_correlations.csv`, sensitivity figures | Unconstrained and ensemble-constrained PAWN SA; temporal and lagged sensitivity analysis |
+
+### Stage 4: Masig Reef ensemble calibration and assessment
+
+| Script | Inputs | Key outputs | Notes |
+|---|---|---|---|
+| `scripts/04a_masig_torres_strait_ensemble.jl` | Config `scripts/_masig_config.jl`, model `.dat` files, EcoRRAP benthic CSV, DHW CSV | `data/ensemble/torres_strait/masig/masig_*.dat`, calibration figures, summary CSVs | Same parallel calibration workflow as `03a` |
+| `scripts/04b_masig_ensemble_assessment.jl` | Output of `04a`, EcoRRAP benthic CSV | `data/sensitivity/torres_strait/masig/ensemble/masig_*.dat`, `data/ensemble/torres_strait/masig/masig_parameter_correlations.csv`, sensitivity figures | Same SA workflow as `03b` |
+
+### Stage 5: Reef 11-162 (Far North) ensemble calibration and assessment
+
+| Script | Inputs | Key outputs | Notes |
+|---|---|---|---|
+| `scripts/05a_un_reef_11-162_far_north_ensemble.jl` | Inline config (no separate config file), `data/offshore_north/overall/*_models.dat`, LTMP benthic CSV, DHW CSV | `data/ensemble/offshore_north/11-162/11-162_*.dat`, calibration figures | Calibration only; uses region-level (overall) models, not reef-specific ones |
+| `scripts/05b_un_reef_11-162_far_north_ensemble_assessment.jl` | Output of `05a` | `data/sensitivity/offshore_north/11-162/ensemble/`, figures | Sensitivity assessment; no temporal analysis (shorter time series) |
 
 ---
 
@@ -164,10 +197,10 @@ at the top of each calibration script:
 
 | File | Reef | Controls |
 |---|---|---|
-| `_16071S_config.jl` | Moore Reef | `ReefConfig` (area, depth, density, initial proportions, excluded years, disturbance years), `CalibrationDataPaths`, `OptimizationConfig`, `CalibrationSettings`, `param_bounds` |
-| `_masig_config.jl` | Masig Reef | Same structure |
+| `scripts/_16071S_config.jl` | Moore Reef | `ReefConfig` (area, depth, density, initial proportions, excluded years, disturbance years), `CalibrationDataPaths`, `OptimizationConfig`, `CalibrationSettings`, `param_bounds` |
+| `scripts/_masig_config.jl` | Masig Reef | Same structure |
 
-Reef 11-162 has no separate config file; settings are defined inline in `05a`.
+Reef 11-162 has no separate config file; settings are defined inline in `scripts/05a`.
 
 **To adapt to a new reef**, copy one of the config files, update all fields, and create new `a`/`b`
 script pair following the existing pattern.
@@ -205,6 +238,7 @@ To force a fresh run, delete or rename the `.dat` files in the relevant
 ## Output directory layout
 
 ```
+scripts/    # all runnable .jl scripts and config files
 data/
 ├── <region>/<reef_or_overall>/     # regression model .dat files and fitted-data .csv files
 ├── ecorrap_benthic/                # processed EcoRRAP benthic cover estimates
