@@ -182,7 +182,11 @@ end
     year_span = year.(c_matched_dates)
     sim_benthic_years = [year_span .∈ Ref(benthic_estimate.year)][1]
     aligned_years = year_span[sim_benthic_years]
-    benthic_data = benthic_estimate[benthic_estimate.year .∈ Ref(aligned_years), :]
+    calib_benthic_data = benthic_estimate[benthic_estimate.year .∈ Ref(aligned_years), :]
+
+    if isempty(calib_benthic_data)
+        throw(ValueError("Benthic observation years were empty!"))
+    end
 
     ensemble_dir = joinpath(file_paths.output_dir, "ensemble", "offshore_north", "moore")
     result_files = [
@@ -204,7 +208,7 @@ end
 
         objective = create_objective_function(
             reef_state, env_conditions, reef_obs.MEAN_LIVE_CORAL,
-            c_sim_indices, c_ref_indices, reef_config.area, sim_benthic_years, benthic_data,
+            c_sim_indices, c_ref_indices, reef_config.area, sim_benthic_years, calib_benthic_data,
             opt_config.random_seed, calib_settings.use_scalers
         )
 
