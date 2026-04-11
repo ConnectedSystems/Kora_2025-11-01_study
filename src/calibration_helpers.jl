@@ -258,6 +258,12 @@ function create_objective_function(
         cover ./= area
         sims = cover[sim_indices]
 
+        # Return a large penalty for degenerate trajectories (NaN/Inf cover or
+        # zero-variance sims, which would produce NaN from pearson/α/β).
+        if any(!isfinite, sims) || std(sims) == 0.0
+            return 1e6
+        end
+
         # Error metrics
         init_mae = abs(sims[1] - obs[1])
         end_mae = abs(sims[end] - obs[end])
@@ -298,7 +304,7 @@ function create_objective_function(
                 for (i, r) in enumerate(eachrow(benthic))
                     s_buffer .= @view benthic_sim[i, :]
                     o_buffer .= collect(r[2:end])
-                    log_r = -cor(log.(s_buffer), log.(o_buffer)) + 1.0
+                    log_r = std(s_buffer) == 0.0 ? 2.0 : -cor(log.(s_buffer), log.(o_buffer)) + 1.0
                     rank_score += log_r
                 end
 
@@ -827,12 +833,12 @@ function plot_calibration_results(
         bf_val_str = isnothing(v_bf_val_rmse) ? "" : " | Val RMSE: $(v_bf_val_rmse)"
         ens_val_str = isnothing(v_ens_val_rmse) ? "" : " | Val RMSE: $(v_ens_val_rmse)"
         metrics_annotation = (
-            "Best Fit - Cal RMSE: $(c_bf_rmse)$(bf_val_str) | ρ_log: $(v_bf_pearson)\n" *
-            "Ensemble - Cal RMSE: $(c_rmse)$(ens_val_str) | ρ_log: $(mean_r_log)"
+            "Best Fit - Cal RMSE: $(c_bf_rmse)$(bf_val_str) | r_log: $(v_bf_pearson)\n" *
+            "Ensemble - Cal RMSE: $(c_rmse)$(ens_val_str) | r_log: $(mean_r_log)"
         )
     else
         bf_val_str = isnothing(v_bf_val_rmse) ? "" : " | Val RMSE: $(v_bf_val_rmse)"
-        metrics_annotation = "Best Fit - Cal RMSE: $(c_bf_rmse)$(bf_val_str) | ρ_log: $(v_bf_pearson)"
+        metrics_annotation = "Best Fit - Cal RMSE: $(c_bf_rmse)$(bf_val_str) | r_log: $(v_bf_pearson)"
     end
 
     # Timeseries panel (total cover)
