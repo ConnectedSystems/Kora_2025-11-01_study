@@ -57,7 +57,7 @@ identifiability_df = parameter_identifiability_metrics(
     ensemble_params, ENSEMBLE_PARAM_NAMES
 )
 corr_df = parameter_correlation_analysis(
-    ensemble_params, ENSEMBLE_PARAM_NAMES; corr_threshold=0.4
+    ensemble_params, ENSEMBLE_PARAM_NAMES; corr_threshold=0.5
 )
 corr_df[!, :Correlation] .= round.(corr_df.Correlation; digits=3)
 CSV.write(joinpath(ensemble_dir, "$(reef_id)_parameter_correlations.csv"), corr_df)
@@ -65,7 +65,7 @@ CSV.write(joinpath(ensemble_dir, "$(reef_id)_parameter_correlations.csv"), corr_
 pawn_sa_results = pawn(ensemble_params', un_reef_ensemble.fitnesses, ENSEMBLE_PARAM_NAMES)
 
 f, ax, sp = heatmap(
-    pawn_sa_results[sortperm(pawn_sa_results[PAWNᵢ=At(:median)]), :];
+    pawn_sa_results[sortperm(pawn_sa_results[PAWNᵢ=At(:mean)]), :];
     colormap=:viridis,
     colorrange=(-0.1, maximum(pawn_sa_results))
 )
@@ -148,7 +148,7 @@ if !isfile(fn_unconstrained_samples)
     serialize(fn_unconstrained_pawn, unc_pawn_sa_results)
 
     f, ax, sp = heatmap(
-        unc_pawn_sa_results[sortperm(unc_pawn_sa_results[PAWNᵢ=At(:median)]), :];
+        unc_pawn_sa_results[sortperm(unc_pawn_sa_results[PAWNᵢ=At(:mean)]), :];
         colormap=:viridis,
         colorrange=(-0.1, maximum(unc_pawn_sa_results))
     )
@@ -196,7 +196,7 @@ if !isfile(fn_constrained_samples)
     serialize(fn_constrained_pawn, cons_pawn_sa_results)
 
     f, ax, sp = heatmap(
-        cons_pawn_sa_results[sortperm(cons_pawn_sa_results[PAWNᵢ=At(:median)]), :];
+        cons_pawn_sa_results[sortperm(cons_pawn_sa_results[PAWNᵢ=At(:mean)]), :];
         colormap=:viridis,
         colorrange=(-0.1, maximum(cons_pawn_sa_results))
     )
@@ -213,7 +213,7 @@ identifiability_df = parameter_identifiability_metrics(
     ensemble_params, ENSEMBLE_PARAM_NAMES
 )
 corr_threshold = parameter_correlation_analysis(
-    ensemble_params, ENSEMBLE_PARAM_NAMES; corr_threshold=0.4
+    ensemble_params, ENSEMBLE_PARAM_NAMES; corr_threshold=0.5
 )
 
 corr_params = unique(vcat(corr_threshold.Param1, corr_threshold.Param2))
@@ -246,11 +246,11 @@ sleep(5)
 save(joinpath(ensemble_fig_dir, "$(reef_id)_ensemble_corr_param_pairplot.png"), f; px_per_unit=DPI)
 
 cons_pawn_sa_results[
-    sortperm(cons_pawn_sa_results[PAWNᵢ=At(:median)]; rev=true), At(:median)
+    sortperm(cons_pawn_sa_results[PAWNᵢ=At(:mean)]; rev=true), At(:mean)
 ].data
 
 most_influential = collect(
-    sortperm(cons_pawn_sa_results[PAWNᵢ=At(:median)]; rev=true)[1:10]
+    sortperm(cons_pawn_sa_results[PAWNᵢ=At(:mean)]; rev=true)[1:10]
 )
 
 # Get factor by names
