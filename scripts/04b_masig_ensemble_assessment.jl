@@ -14,7 +14,7 @@ ensemble_params = hcat(masig_ensemble.candidates...)
 parameter_identifiability_metrics(ensemble_params, ENSEMBLE_PARAM_NAMES)
 
 corr_df = parameter_correlation_analysis(
-    ensemble_params, ENSEMBLE_PARAM_NAMES; corr_threshold=0.6
+    ensemble_params, ENSEMBLE_PARAM_NAMES; corr_threshold=0.5
 )
 corr_df[!, :Correlation] .= round.(corr_df.Correlation; digits=3)
 CSV.write(joinpath(ensemble_dir, "$(reef_id)_parameter_correlations.csv"), corr_df)
@@ -158,6 +158,27 @@ else
     cons_pawn_sa_results = deserialize(fn_constrained_pawn)
 end
 
+# ── Export PAWN results as CSV ────────────────────────────────────────────────
+function _pawn_to_csv(results::YAXArray, path::String)
+    factors = string.(collect(results.axes[1]))
+    stats   = collect(results.axes[2])
+    df = DataFrame(:parameter => factors)
+    for s in stats
+        df[!, string(s)] = collect(results[PAWNᵢ=At(s)])
+    end
+    CSV.write(path, df)
+    return df
+end
+
+_pawn_to_csv(
+    unc_pawn_sa_results,
+    joinpath(ensemble_data_dir, "$(reef_id)_unconstrained_pawn_results.csv")
+)
+_pawn_to_csv(
+    cons_pawn_sa_results,
+    joinpath(ensemble_data_dir, "$(reef_id)_constrained_pawn_results.csv")
+)
+
 # ── Publication theme ─────────────────────────────────────────────────────────
 fontsize_theme = Theme(; fontsize=14)
 set_theme!(fontsize_theme)
@@ -165,7 +186,7 @@ set_theme!(fontsize_theme)
 # ── Ensemble correlations ─────────────────────────────────────────────────────
 parameter_identifiability_metrics(ensemble_params, ENSEMBLE_PARAM_NAMES)
 corr_threshold = parameter_correlation_analysis(
-    ensemble_params, ENSEMBLE_PARAM_NAMES; corr_threshold=0.6
+    ensemble_params, ENSEMBLE_PARAM_NAMES; corr_threshold=0.5
 )
 
 corr_params = unique(vcat(corr_threshold.Param1, corr_threshold.Param2))
@@ -197,42 +218,15 @@ most_influential = collect(
 factor_names = collect(collect(cons_pawn_sa_results.factors[most_influential]))
 
 target_df = df[:, factor_names]
-f = pairplot(
-    target_df => (
-        PairPlots.Series(target_df),
-        PairPlots.HexBin(; colormap=Makie.cgrad([:transparent, :black])),
-        PairPlots.Scatter(; alpha=0.5),
-        PairPlots.Contour(),
-        PairPlots.MarginDensity(; bandwidth=0.1),
-        PairPlots.MarginQuantileText()
-    );
-    labels=Dict(
-        f => rich(string(f); fontsize=18) for f in factor_names
-    )
-)
 
-resize_to_layout!(f)
-sleep(5)
-save(
-    joinpath(ensemble_fig_dir, "$(reef_id)_cons_ensemble_sa_param_pairplot.png"), f; px_per_unit=DPI
-)
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# ADDITION 1 — Reduction in prediction uncertainty histogram
-#
-# Compares unconstrained prior (unc_samples) against the multi-start calibration
-# posterior (ensemble_params) using relative σ reduction as the ranking metric:
-#   (σ_prior − σ_posterior) / σ_prior
-# Two rows of three panels: greatest uncertainty reduction (top) and most
-# PAWN-sensitive parameters (bottom).
-# ═══════════════════════════════════════════════════════════════════════════════
-
+# ── Uncertainty reduction: prior vs. posterior ────────────────────────────────
 posterior_samples = Matrix(ensemble_params')
 
 σ_prior     = vec(std(unc_samples;       dims=1))
 σ_posterior = vec(std(posterior_samples; dims=1))
 rel_reduction = (σ_prior .- σ_posterior) ./ σ_prior
 
+# Top-3 most-sensitive (PAWN) parameters
 top3_sensitive = most_influential[1:3]
 
 function plot_uncertainty_panel!(ax, pidx, unc_samples, posterior_samples, rel_reduction)
@@ -251,35 +245,61 @@ function plot_uncertainty_panel!(ax, pidx, unc_samples, posterior_samples, rel_r
         text="σ prior: $(σ_prior_v) → $(σ_post_v) (−$(pct)%)",
         align=(:right, :top),
         space=:relative,
-        fontsize=10,
+        fontsize=18,
         color=:black
     )
 end
 
-fig_hist = Figure(; size=(1100, 350))
+# ── Combined figure: constrained SA pairplot (a) + uncertainty reduction (b) ──
+fig_combined = Figure(; size=(2000, 2750))
 
-Label(fig_hist[1, 0]; text="Most\ninfluential\n(PAWN)", tellheight=false, rotation=π/2, fontsize=13)
+pairplot(
+    fig_combined[1, 1],
+    target_df => (
+        PairPlots.Series(target_df),
+        PairPlots.HexBin(; colormap=Makie.cgrad([:transparent, :black])),
+        PairPlots.Scatter(; alpha=0.5),
+        PairPlots.Contour(),
+        PairPlots.MarginDensity(; bandwidth=0.1),
+        PairPlots.MarginQuantileText()
+    );
+    labels=Dict(fn => rich(string(fn); fontsize=20) for fn in factor_names)
+)
+
+gl_unc = fig_combined[2, 1] = GridLayout()
+Label(gl_unc[1, 0]; text="Most\ninfluential\n(PAWN)", tellheight=false, rotation=π/2, fontsize=22)
 
 for (col, pidx) in enumerate(top3_sensitive)
     local ax = Axis(
-        fig_hist[1, col];
+        gl_unc[1, col];
         xlabel=string(ENSEMBLE_PARAM_NAMES[pidx]),
         ylabel=col == 1 ? "Density" : "",
+        xlabelsize=22,
+        ylabelsize=22,
+        xticklabelsize=20,
+        yticklabelsize=20,
     )
     plot_uncertainty_panel!(ax, pidx, unc_samples, posterior_samples, rel_reduction)
 end
 
-Legend(fig_hist[0, 1:3],
+Legend(gl_unc[0, 1:3],
     [PolyElement(; color=(:steelblue, 0.6)), PolyElement(; color=(:orangered, 0.6))],
     ["Prior (unconstrained)", "Posterior (calibrated ensemble)"];
     orientation=:horizontal,
     framevisible=false
 )
-Label(fig_hist[0, 0]; text="", tellheight=false)
+Label(gl_unc[0, 0]; text="", tellheight=false)
 
+Label(fig_combined[1, 1, TopLeft()], "(A)"; fontsize=16, font=:bold, padding=(4, 0, 4, 0))
+Label(fig_combined[2, 1, TopLeft()], "(B)"; fontsize=16, font=:bold, padding=(4, 0, 4, 0))
+
+rowsize!(fig_combined.layout, 1, 1950)
+rowsize!(fig_combined.layout, 2, 350)
+
+sleep(5)
 save(
-    joinpath(ensemble_fig_dir, "$(reef_id)_prediction_uncertainty_reduction.png"),
-    fig_hist; px_per_unit=DPI
+    joinpath(ensemble_fig_dir, "$(reef_id)_cons_ensemble_sa_param_pairplot.png"),
+    fig_combined; px_per_unit=DPI
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -558,7 +578,7 @@ for (k, lag_yr) in zip(lags_ts, lags_yr)
         fig_lag[1, 1];
         xlabel="Window start year",
         ylabel="Parameter",
-        title="Lagged PAWN — cover at t+$(lag_yr)yr — $(reef_id)",
+        title="Temporal Sensitivity Analysis — cover at t+$(lag_yr)yr — $(reef_id)",
         yticks=(1:n_params, string.(sorted_names_l)),
         yreversed=false
     )

@@ -14,7 +14,7 @@ ensemble_params = hcat(moore_ensemble.candidates...);
 parameter_identifiability_metrics(ensemble_params, ENSEMBLE_PARAM_NAMES)
 
 corr_df = parameter_correlation_analysis(
-    ensemble_params, ENSEMBLE_PARAM_NAMES; corr_threshold=0.6
+    ensemble_params, ENSEMBLE_PARAM_NAMES; corr_threshold=0.5
 )
 corr_df[!, :Correlation] .= round.(corr_df.Correlation; digits=3)
 CSV.write(joinpath(ensemble_dir, "$(reef_id)_parameter_correlations.csv"), corr_df)
@@ -175,6 +175,27 @@ else
     cons_pawn_sa_results = deserialize(fn_constrained_pawn)
 end
 
+# ── Export PAWN results as CSV ────────────────────────────────────────────────
+function _pawn_to_csv(results::YAXArray, path::String)
+    factors = string.(collect(results.axes[1]))
+    stats   = collect(results.axes[2])
+    df = DataFrame(:parameter => factors)
+    for s in stats
+        df[!, string(s)] = collect(results[PAWNᵢ=At(s)])
+    end
+    CSV.write(path, df)
+    return df
+end
+
+_pawn_to_csv(
+    unc_pawn_sa_results,
+    joinpath(ensemble_data_dir, "$(reef_id)_unconstrained_pawn_results.csv")
+)
+_pawn_to_csv(
+    cons_pawn_sa_results,
+    joinpath(ensemble_data_dir, "$(reef_id)_constrained_pawn_results.csv")
+)
+
 # ── Publication theme ─────────────────────────────────────────────────────────
 fontsize_theme = Theme(; fontsize=14)
 set_theme!(fontsize_theme)
@@ -182,7 +203,7 @@ set_theme!(fontsize_theme)
 # ── Ensemble correlations ─────────────────────────────────────────────────────
 parameter_identifiability_metrics(ensemble_params, ENSEMBLE_PARAM_NAMES)
 corr_threshold = parameter_correlation_analysis(
-    ensemble_params, ENSEMBLE_PARAM_NAMES; corr_threshold=0.6
+    ensemble_params, ENSEMBLE_PARAM_NAMES; corr_threshold=0.5
 )
 
 corr_params = unique(vcat(corr_threshold.Param1, corr_threshold.Param2))
@@ -208,7 +229,7 @@ save(joinpath(ensemble_fig_dir, "$(reef_id)_ensemble_corr_param_pairplot.png"), 
 
 # ── Identify most influential parameters from constrained PAWN ────────────────
 cons_pawn_sa_results[
-    sortperm(cons_pawn_sa_results[PAWNᵢ=At(:mean)]; rev=true), At(:median)
+    sortperm(cons_pawn_sa_results[PAWNᵢ=At(:mean)]; rev=true), At(:mean)
 ].data
 
 most_influential = collect(
@@ -218,42 +239,8 @@ most_influential = collect(
 factor_names = collect(collect(cons_pawn_sa_results.factors[most_influential]))
 
 target_df = df[:, factor_names]
-f = pairplot(
-    target_df => (
-        PairPlots.Series(target_df),
-        PairPlots.HexBin(; colormap=Makie.cgrad([:transparent, :black])),
-        PairPlots.Scatter(; alpha=0.5),
-        PairPlots.Contour(),
-        PairPlots.MarginDensity(; bandwidth=0.1),
-        PairPlots.MarginQuantileText()
-    );
-    labels=Dict(
-        f => rich(string(f); fontsize=18) for f in factor_names
-    )
-)
 
-resize_to_layout!(f)
-sleep(5)
-save(
-    joinpath(ensemble_fig_dir, "$(reef_id)_cons_ensemble_sa_param_pairplot.png"), f; px_per_unit=DPI
-)
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# ADDITION 1 — Reduction in prediction uncertainty histogram
-#
-# Identifies which parameter saw the greatest tightening of its distribution
-# after calibration by comparing the unconstrained prior (unc_samples, uniform
-# QMC sweep over param_bounds) against the multi-start calibration posterior
-# (ensemble_params).  ensemble_params reflects the actual geometry of good
-# solutions — including correlations and multi-modality visible in the pairplots
-# — which a constrained QMC bounding-box sweep cannot capture.
-#
-# Relative reduction in standard deviation is used as the ranking metric:
-#   (σ_prior − σ_posterior) / σ_prior
-# The histogram shows the prior vs posterior distribution for the most-reduced
-# parameter.  CV annotations quantify the tightening numerically.
-# ═══════════════════════════════════════════════════════════════════════════════
-
+# ── Uncertainty reduction: prior vs. posterior ────────────────────────────────
 # ensemble_params is (n_params × n_candidates); need (n_candidates × n_params)
 posterior_samples = Matrix(ensemble_params')
 
@@ -262,7 +249,7 @@ posterior_samples = Matrix(ensemble_params')
 σ_posterior = vec(std(posterior_samples; dims=1))
 rel_reduction = (σ_prior .- σ_posterior) ./ σ_prior
 
-# Top-3 most-reduced and top-3 most-sensitive (PAWN) parameters
+# Top-3 most-sensitive (PAWN) parameters
 top3_sensitive = most_influential[1:3]
 
 function plot_uncertainty_panel!(ax, pidx, unc_samples, posterior_samples, rel_reduction)
@@ -281,37 +268,61 @@ function plot_uncertainty_panel!(ax, pidx, unc_samples, posterior_samples, rel_r
         text="σ prior: $(σ_prior_v) → $(σ_post_v) (−$(pct)%)",
         align=(:right, :top),
         space=:relative,
-        fontsize=10,
+        fontsize=18,
         color=:black
     )
 end
 
-fig_hist = Figure(; size=(1100, 350))
+# ── Combined figure: constrained SA pairplot (a) + uncertainty reduction (b) ──
+fig_combined = Figure(; size=(2000, 2750))
 
-Label(fig_hist[1, 0]; text="Most\ninfluential\n(PAWN)", tellheight=false, rotation=π/2, fontsize=13)
+pairplot(
+    fig_combined[1, 1],
+    target_df => (
+        PairPlots.Series(target_df),
+        PairPlots.HexBin(; colormap=Makie.cgrad([:transparent, :black])),
+        PairPlots.Scatter(; alpha=0.5),
+        PairPlots.Contour(),
+        PairPlots.MarginDensity(; bandwidth=0.1),
+        PairPlots.MarginQuantileText()
+    );
+    labels=Dict(fn => rich(string(fn); fontsize=20) for fn in factor_names)
+)
+
+gl_unc = fig_combined[2, 1] = GridLayout()
+Label(gl_unc[1, 0]; text="Most\ninfluential\n(PAWN)", tellheight=false, rotation=π/2, fontsize=22)
 
 for (col, pidx) in enumerate(top3_sensitive)
     ax = Axis(
-        fig_hist[1, col];
+        gl_unc[1, col];
         xlabel=string(ENSEMBLE_PARAM_NAMES[pidx]),
         ylabel=col == 1 ? "Density" : "",
+        xlabelsize=22,
+        ylabelsize=22,
+        xticklabelsize=20,
+        yticklabelsize=20,
     )
     plot_uncertainty_panel!(ax, pidx, unc_samples, posterior_samples, rel_reduction)
 end
 
-# Shared legend via a dummy axis
-Legend(fig_hist[0, 1:3],
+Legend(gl_unc[0, 1:3],
     [PolyElement(; color=(:steelblue, 0.6)), PolyElement(; color=(:orangered, 0.6))],
     ["Prior (unconstrained)", "Posterior (calibrated ensemble)"];
     orientation=:horizontal,
     framevisible=false
 )
+Label(gl_unc[0, 0]; text="", tellheight=false)
 
-Label(fig_hist[0, 0]; text="", tellheight=false)  # spacer to align legend with panels
+Label(fig_combined[1, 1, TopLeft()], "(A)"; fontsize=16, font=:bold, padding=(4, 0, 4, 0))
+Label(fig_combined[2, 1, TopLeft()], "(B)"; fontsize=16, font=:bold, padding=(4, 0, 4, 0))
 
+rowsize!(fig_combined.layout, 1, 1950)
+rowsize!(fig_combined.layout, 2, 350)
+
+sleep(5)
 save(
-    joinpath(ensemble_fig_dir, "$(reef_id)_prediction_uncertainty_reduction.png"),
-    fig_hist; px_per_unit=DPI
+    joinpath(ensemble_fig_dir, "$(reef_id)_cons_ensemble_sa_param_pairplot.png"),
+    fig_combined; px_per_unit=DPI
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -497,7 +508,7 @@ ax_tsa = Axis(
     fig_tsa[1, 1];
     xlabel="Year",
     ylabel="Parameter",
-    title="Temporal PAWN sensitivity — $(reef_id)",
+    title="Temporal PAWN sensitivity — Moore Reef",
     yticks=(1:n_params, string.(sorted_names)),
     yreversed=false
 )
@@ -652,7 +663,7 @@ for (k, lag_yr) in zip(lags_ts, lags_yr)
         fig_lag[1, 1];
         xlabel="Window start year",
         ylabel="Parameter",
-        title="Lagged PAWN — cover at t+$(lag_yr)yr — $(reef_id)",
+        title="Temporal Sensitivity Analysis — cover at t+$(lag_yr)yr — Moore Reef",
         yticks=(1:n_params, string.(sorted_names_l)),
         yreversed=false
     )
@@ -687,7 +698,7 @@ ax_crosslag = Axis(
     fig_crosslag[1, 1];
     xlabel="Lag (years)",
     ylabel="Mean PAWN index",
-    title="Parameter influence vs. recovery horizon — top $(top_k) — $(reef_id)",
+    title="Parameter influence vs. recovery horizon — top $(top_k) — Moore Reef",
     xticks=vcat(0, lags_yr)
 )
 
@@ -731,7 +742,7 @@ for g in axes(ts_outputs_bygroup, 3)
         fig_g[1, 1];
         xlabel="Year",
         ylabel="Parameter",
-        title="Temporal PAWN — $(reef_id) — $(group_names[g])",
+        title="Temporal PAWN — Moore Reef — $(group_names[g])",
         yticks=(1:n_params, string.(sorted_names_g)),
         yreversed=false
     )
