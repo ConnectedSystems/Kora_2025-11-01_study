@@ -17,8 +17,6 @@ import GeoDataFrames as GDF
 using CairoMakie
 using CoralFlow
 
-Makie.inline!(true)
-
 OUTPUT_DIR = joinpath(@__DIR__, "..", "data")
 FIG_DIR = joinpath(@__DIR__, "..", "figs")
 EXT_DATA_DIR = joinpath(@__DIR__, "..", "..", "data")

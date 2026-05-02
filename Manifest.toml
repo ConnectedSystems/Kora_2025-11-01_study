@@ -2,7 +2,7 @@
 
 julia_version = "1.11.7"
 manifest_format = "2.0"
-project_hash = "98e488186cdd8bc487fa0611653e1d758ac0f190"
+project_hash = "99be97bab9bca6550e8310188c0d3952224cc3ef"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "8be2ae325471fc20b11c27bb34b518541d07dd3a"
@@ -998,6 +998,16 @@ git-tree-sha1 = "fb1156076f24f1dfee45b3feadb31d05730a49ac"
 uuid = "0329782f-3d07-4b52-b9f6-d3137cf03c7a"
 version = "1.0.2"
 
+[[deps.GeoJSON]]
+deps = ["Extents", "GeoFormatTypes", "GeoInterface", "GeoInterfaceMakie", "GeoInterfaceRecipes", "JSON3", "StructTypes", "Tables"]
+git-tree-sha1 = "c803640368acf4ae02bb5a69a986cecc4a5cb984"
+uuid = "61d90e0f-e114-555e-ac52-39dfb47a3ef9"
+version = "0.8.3"
+weakdeps = ["Makie"]
+
+    [deps.GeoJSON.extensions]
+    GeoJSONMakieExt = "Makie"
+
 [[deps.GeometryBasics]]
 deps = ["EarCut_jll", "Extents", "GeoInterface", "IterTools", "LinearAlgebra", "StaticArrays", "StructArrays", "Tables"]
 git-tree-sha1 = "b62f2b2d76cee0d61a2ef2b3118cd2a3215d3134"
@@ -1717,6 +1727,12 @@ deps = ["PrettyPrint"]
 git-tree-sha1 = "1a0fa0e9613f46c9b8c11eee38ebb4f590013c5e"
 uuid = "71a1bf82-56d0-4bbc-8a3c-48b961074391"
 version = "0.1.5"
+
+[[deps.NaturalEarth]]
+deps = ["Downloads", "GeoJSON", "Pkg", "Scratch"]
+git-tree-sha1 = "3f75210ac08fe4496a55f9694b95859c40b8eaea"
+uuid = "436b0209-26ab-4e65-94a9-6526d86fea76"
+version = "0.1.0"
 
 [[deps.NetCDF]]
 deps = ["DiskArrays", "NetCDF_jll"]
