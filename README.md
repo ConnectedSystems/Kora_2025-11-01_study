@@ -1,26 +1,26 @@
-# CoralFlow calibration (2025-11-01)
+# Kora calibration (2025-11-01)
 
-> **Note:** This is research code that is functional but does not follow best practices. 
-> The structure is documented here to help readers reproduce the analysis as well as 
-> possible. My apologies to the reader who has to figure it out, as I do not have time to 
+> **Note:** This is research code that is functional but does not follow best practices.
+> The structure is documented here to help readers reproduce the analysis as well as
+> possible. My apologies to the reader who has to figure it out, as I do not have time to
 > clean it all up. If it is any consolation, I hate the state of the code very much.
 
 Future efforts will incorporate the ensemble calibration and assessment process into
-[CoralFlow.jl](https://github.com/ConnectedSystems/CoralFlow.jl) or a companion package.
+[Kora.jl](https://github.com/open-AIMS/Kora.jl) or a companion package.
 
 ---
 
 ## Purpose
 
-This study calibrates and evaluates the [CoralFlow.jl](https://github.com/ConnectedSystems/CoralFlow.jl)
+This study calibrates and evaluates the [Kora.jl](https://github.com/open-AIMS/Kora.jl)
 individual-based coral reef model against field observations for two reefs:
 
 - **Moore Reef** (16071S): Offshore North region, Great Barrier Reef
 - **Masig Reef**: Torres Strait region
 
 A third reef (**11-162**, Far North) is calibrated without a full sensitivity assessment using
-regression models for the Offshore North region, not a reef-specific regression. It is not 
-included in the paper as the findings from Masig Reef sufficed. The results/figures are 
+regression models for the Offshore North region, not a reef-specific regression. It is not
+included in the paper as the findings from Masig Reef sufficed. The results/figures are
 kept to illustrate the danger of applying models without a careful assessment of utility for
 the purpose of projection.
 
@@ -29,6 +29,16 @@ functional group, then performs an exploratory sensitivity analysis of the growt
 functions, fits reef-specific regression models to the field data, calibrates an ensemble of
 plausible initial reef states against historical observations, and finally performs sensitivity
 analysis to identify which parameters most influence model behaviour.
+
+### Expanded dataset (all sites)
+
+Scripts `00a_prep_oceanographic_stats.jl` and `00b_collate_expanded_dataset.jl` prepare a
+unified expanded dataset covering all 13 EcoRRAP monitoring sites across 6 clusters (Inshore
+Central, Inshore South, Offshore Central, Offshore North, Offshore South, Torres Strait). This
+dataset joins individual coral tracking data (IPM) with community benthic cover by functional
+group and period-level oceanographic statistics (temperature, salinity, current speed, wave
+height, PAR). It is intended to support future region-wide sensitivity analysis and model
+generalisation work, and does not replace the two-reef workflow used in Stages 1–5.
 
 ---
 
@@ -46,7 +56,7 @@ Julia ≥ 1.11 is recommended. Install dependencies by activating the project an
 
 | Package | Purpose |
 |---|---|
-| `CoralFlow` | Core reef simulation model (separate repository) |
+| `Kora` | Core reef simulation model (separate repository) |
 | `BlackBoxOptim` | Evolutionary optimisation for calibration |
 | `QuasiMonteCarlo` | Sobol sampling for sensitivity analysis |
 | `HypothesisTests` | KS-test used internally by the PAWN implementation |
@@ -69,18 +79,19 @@ running any scripts.
 
 ### Restricted data (not publicly available)
 
-These files were provided under data sharing arrangements and cannot be redistributed. They 
-are expected one directory **above** the study folder (i.e. alongside the project directory, 
+These files were provided under data sharing arrangements and cannot be redistributed. They
+are expected one directory **above** the study folder (i.e. alongside the project directory,
 at `../data/` relative to the study root).
 
 | File | Source |
 |---|---|
 | `ecorrap_adult_juv_combined_2021_2023_24062025.csv` | EcoRRAP program (AIMS) |
 | `EcoRRAP data for IPM_250624.csv` | EcoRRAP program (AIMS) |
+| `ecorrap to cscape species.csv` | EcoRRAP program (AIMS) — maps taxon codes to Kora functional groups |
 
 The first incorporates juvenile quadrat data from:
-> Doropoulos, C., Alvarez-Noriega, M., Fabricius, K., Ferrari, R., Mumby, P.J., Noonan, S.H.C., Orr, M., > 
-> Salee, K., 2025. Impact of environmental gradients on juvenile coral demography across the Great Barrier 
+> Doropoulos, C., Alvarez-Noriega, M., Fabricius, K., Ferrari, R., Mumby, P.J., Noonan, S.H.C., Orr, M., >
+> Salee, K., 2025. Impact of environmental gradients on juvenile coral demography across the Great Barrier
 > Reef and Torres Strait. Coral Reefs. https://doi.org/10.1007/s00338-025-02742-6
 
 The second dataset was collated by Dr. Anna Cresswell (Australian Institute of Marine Science)
@@ -89,7 +100,7 @@ and can be provided on request.
 #### Processed outputs derived from restricted data
 
 The following files - produced by stages 1 and 2 from the restricted inputs above - are
-included in this repository. **Stages 3 - 5 (calibration and assessment) can therefore be 
+included in this repository. **Stages 3 - 5 (calibration and assessment) can therefore be
 run without access to the raw restricted data.**
 
 | Location | Contents |
@@ -103,12 +114,36 @@ The `*_models.dat` files are the fitted growth and survival regression models co
 the calibration scripts. The `*_growth.csv` / `*_survival.csv` files are the pre-processed
 individual-level training data used to fit them.
 
-The [Canonical Reefs](https://github.com/gbrrestoration/canonical-reefs) dataset is used to 
+The [Canonical Reefs](https://github.com/gbrrestoration/canonical-reefs) dataset is used to
 identify reefs of interest by their UNIQUE IDs.
 
-Manta Tow data were sourced directly from the 
-[AIMS Reef Monitoring Dashboard](https://apps.aims.gov.au/reef-monitoring/reefs) for the 
+Manta Tow data were sourced directly from the
+[AIMS Reef Monitoring Dashboard](https://apps.aims.gov.au/reef-monitoring/reefs) for the
 reefs of interest.
+
+#### Expanded dataset — additional restricted files
+
+The following additional files are required only for the expanded all-sites pipeline
+(`00a_prep_oceanographic_stats.jl` and `00b_collate_expanded_dataset.jl`). They are placed
+inside the study `data/` directory rather than the parent `../data/` directory.
+
+| Path (relative to study root) | Contents |
+|---|---|
+| `data/ecorrap_benthic/latest/cover_estimate_DESCRIPTION.csv` | Photoquadrat benthic cover (%) per species and transect for all 13 sites |
+| `data/ecorrap_benthic/latest/EcoRRAP_Community_Composition_Labelset.xlsx` | Updated labelset mapping DESCRIPTION codes to functional groups; export to CSV and update `LABELSET_FILE` in `00b` if the current CSV is missing species |
+| `data/ecorrap_benthic/EcoRRAP_Labelset_mapping_Maren_Toor_2026-01-20.csv` | Older labelset mapping used by `00b` as the default; one-to-one DESCRIPTION → functional group, no ambiguous entries |
+| `data/ecorrap_oceanographic/TEMP_STATS/` | Daily temperature stats files (one per instrument deployment) |
+| `data/ecorrap_oceanographic/PSAL_STATS/` | Daily salinity stats files |
+| `data/ecorrap_oceanographic/CSPD_STATS/` | Hourly current speed files |
+| `data/ecorrap_oceanographic/WAVES_CSV/` | Sub-hourly wave height files (`W`-prefix only; `X`-prefix excluded) |
+| `data/ecorrap_oceanographic/PAR_CSV/` | Daily light integral files (`*_dli.csv` only) |
+
+All oceanographic files share a common `# key : value` metadata header format. Site identity
+and instrument depth are read from `platform_code` and `instrument_nominal_depth` header fields.
+
+The site code lookup table (`data/reef_site_code_lookup.csv`) is generated by this study and
+is included in the repository. It maps reef names to the site codes used in the benthic and
+oceanographic datasets (which use different codes for some Southern GBR sites).
 
 ### Publicly available data
 
@@ -134,14 +169,14 @@ If running directly from the command line:
 
 ```
 cd scripts
-julia --project=.. 00_prep_ecorrap_data.jl
+julia --project=.. 00c_prep_ecorrap_data.jl
 ```
 
 or via the REPL (from the project root):
 
 ```
 ; cd scripts
-include("00_prep_ecorrap_data.jl")
+include("00c_prep_ecorrap_data.jl")
 ```
 
 Within each stage, `a` scripts produce data consumed by `b` scripts.
@@ -150,7 +185,9 @@ Within each stage, `a` scripts produce data consumed by `b` scripts.
 
 | Script | Inputs | Key outputs | Notes |
 |---|---|---|---|
-| `scripts/00_prep_ecorrap_data.jl` | `data/ecorrap_benthic/EcoRRAP_Benthic_Data_*.csv`, labelset mapping | `data/ecorrap_benthic/moore_estimate.csv`, `masig_estimate.csv`, `data/Masig_Reef_EcoRRAP_estimate.csv` | Aggregates EcoRRAP point-intercept transect data into annual mean cover by functional group for each site |
+| `scripts/00c_prep_ecorrap_data.jl` | `data/ecorrap_benthic/latest/cover_estimate_DESCRIPTION.csv`, labelset mapping | `data/ecorrap_benthic/moore_estimate.csv`, `masig_estimate.csv`, `data/Masig_Reef_EcoRRAP_estimate.csv` | Produces annual mean cover by functional group for Moore and Masig from the expanded benthic data. Original version (old data format) archived as `00a_prep_ecorrap_data_ARCHIVED.jl`. Required for Stages 1–5. |
+| `scripts/00a_prep_oceanographic_stats.jl` | `data/ecorrap_oceanographic/{TEMP,PSAL,CSPD,WAVES,PAR}_*/` | `data/ecorrap_oceanographic/ocn_annual_stats.csv` | Processes all oceanographic instrument files into period-level summary statistics (mean + median) per site, depth category, and survey year. Two-step aggregation averages across multiple instruments before computing period statistics. Default window: `survey_year` (May–April). |
+| `scripts/00b_collate_expanded_dataset.jl` | `ecorrap_adult_juv_combined_*.csv`, `cover_estimate_DESCRIPTION.csv`, `ocn_annual_stats.csv` (output of `00a`), labelset CSV, `ecorrap to cscape species.csv`, `reef_site_code_lookup.csv` | `data/ecorrap_expanded.csv` | Joins individual coral tracking data with community benthic cover (aggregated from species to functional groups via the labelset) and oceanographic statistics. One row per individual coral observation. Run `00a` first. |
 
 ### Stage 1: Exploratory sensitivity analysis of growth/survival functions
 
@@ -243,7 +280,15 @@ Future improvements will aim to automate the process.
 scripts/    # all runnable .jl scripts and config files
 data/
 ├── <region>/<reef_or_overall>/     # regression model .dat files and fitted-data .csv files
-├── ecorrap_benthic/                # processed EcoRRAP benthic cover estimates
+├── ecorrap_benthic/                # EcoRRAP benthic cover data and estimates
+│   ├── moore_estimate.csv          # annual mean cover by functional group — Moore Reef
+│   ├── masig_estimate.csv          # annual mean cover by functional group — Masig Reef
+│   └── latest/                     # expanded benthic cover input files (all 13 sites)
+├── ecorrap_oceanographic/          # oceanographic instrument data and derived stats
+│   ├── {TEMP,PSAL,CSPD,WAVES,PAR}_*/  # raw instrument files (input, not generated)
+│   └── ocn_annual_stats.csv        # period-level stats per site × depth × year (output of 00a)
+├── ecorrap_expanded.csv            # unified IPM + benthic cover + oceanographic dataset (output of 00b)
+├── reef_site_code_lookup.csv       # maps reef names to benthic and oceanographic site codes
 ├── dhw/                            # degree heating week time series
 ├── ensemble/<region>/<reef>/       # calibration outputs (*_ensemble_output.dat, *_initial_guess.dat, etc.)
 └── sensitivity/<region>/<reef>/ensemble/   # sensitivity analysis samples and PAWN results
