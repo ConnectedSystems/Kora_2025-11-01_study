@@ -1347,10 +1347,10 @@ uuid = "5ab0869b-81aa-558d-bb23-cbf5423bbe9b"
 version = "0.6.10"
 
 [[deps.Kora]]
-deps = ["Bootstrap", "CSV", "CurveFit", "DataFrames", "DiskArrays", "Distributed", "Distributions", "FLoops", "GLM", "Interpolations", "KernelDensity", "MLBase", "Missings", "ModelParameters", "OnlineStats", "OrderedCollections", "PrecompileSignatures", "Printf", "ProgressLogging", "QuadGK", "Random", "Serialization", "SpecialFunctions", "Statistics", "StatsBase", "StatsFuns", "TerminalLoggers", "YAXArrays"]
+deps = ["Bootstrap", "CSV", "CurveFit", "DataFrames", "DiskArrays", "Distributed", "Distributions", "FLoops", "GLM", "Interpolations", "KernelDensity", "MLBase", "Missings", "ModelParameters", "OnlineStats", "OrderedCollections", "Parquet2", "PrecompileSignatures", "Printf", "ProgressLogging", "QuadGK", "Random", "Serialization", "SpecialFunctions", "Statistics", "StatsBase", "StatsFuns", "TerminalLoggers", "YAXArrays"]
 path = "../.."
 uuid = "63f594c6-e77c-4cfd-819e-df68f57e9897"
-version = "0.1.0"
+version = "1.0.0"
 
     [deps.Kora.extensions]
     MakieExt = "Makie"
