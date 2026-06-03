@@ -13,7 +13,7 @@ for reef in reefs
     mkpath(joinpath(FIG_DIR, "regressions", region, tgt_dir))
 
     growth_results = CoralFlow.process_growth_models(
-        joinpath(EXT_DATA_DIR, "ecorrap_adult_juv_combined_2021_2023_24062025.csv"),
+        joinpath(OUTPUT_DIR, "ecorrap_expanded.parquet"),
         joinpath(OUTPUT_DIR, "ecorrap_to_cscape_species.csv");
         region=region,
         reef=reef,
@@ -23,7 +23,7 @@ for reef in reefs
     )
 
     survival_results = CoralFlow.process_survival_models(
-        joinpath(EXT_DATA_DIR, "ecorrap_adult_juv_combined_2021_2023_24062025.csv"),
+        joinpath(OUTPUT_DIR, "ecorrap_expanded.parquet"),
         joinpath(OUTPUT_DIR, "ecorrap_to_cscape_species.csv");
         region=region,
         reef=reef,
@@ -48,6 +48,10 @@ for reef in reefs
     )
 
     model_dir = joinpath(OUTPUT_DIR, region, tgt_dir)
-    export_model_summaries(growth_results.growth_fits,     model_dir, "$(region)_$(tgt_dir)_growth")
-    export_model_summaries(survival_results.survival_fits, model_dir, "$(region)_$(tgt_dir)_survival")
+    export_model_summaries(
+        growth_results.growth_fits, model_dir, "$(region)_$(tgt_dir)_growth"
+    )
+    export_model_summaries(
+        survival_results.survival_fits, model_dir, "$(region)_$(tgt_dir)_survival"
+    )
 end

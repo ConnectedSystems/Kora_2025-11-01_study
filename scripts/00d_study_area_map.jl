@@ -16,14 +16,16 @@ using NaturalEarth
 
 # ── Data paths ─────────────────────────────────────────────────────────────────
 gpkg_path = joinpath(@__DIR__, "..", "data", "rrap_canonical_2025-07-15-T10-48-29.gpkg")
-on_csv    = joinpath(EXT_DATA_DIR, "EcoRRAP data for IPM_250624.csv")
-ts_csv    = joinpath(EXT_DATA_DIR, "ecorrap_adult_juv_combined_2021_2023_24062025.csv")
+on_csv = joinpath(EXT_DATA_DIR, "EcoRRAP data for IPM_250624.csv")
+ts_csv = joinpath(EXT_DATA_DIR, "ecorrap_adult_juv_combined_2021_2023_24062025.csv")
 
 # ── Load canonical reefs ───────────────────────────────────────────────────────
 reefs = GDF.read(gpkg_path)
 
 # ── Load EcoRRAP observation data ─────────────────────────────────────────────
-on_data = CSV.read(on_csv, DataFrame; types=Dict(:LAT => Float64, :LONG => Float64), missingstring="NA")
+on_data = CSV.read(
+    on_csv, DataFrame; types=Dict(:LAT => Float64, :LONG => Float64), missingstring="NA"
+)
 ts_data = CSV.read(ts_csv, DataFrame; missingstring="NA")
 
 # Unique reef names from each dataset (lowercase for matching)
@@ -47,15 +49,19 @@ push!(ts_study_norm, "akone")
 const ON_LON_RANGE = (144.5, 148.5)
 const ON_LAT_RANGE = (-18.5, -14.0)
 const TS_LON_RANGE = (141.0, 145.5)
-const TS_LAT_RANGE = (-11.5,  -8.5)
+const TS_LAT_RANGE = (-11.5, -8.5)
 
-on_in_region = (reefs.LON .>= ON_LON_RANGE[1]) .& (reefs.LON .<= ON_LON_RANGE[2]) .&
-               (reefs.LAT .>= ON_LAT_RANGE[1]) .& (reefs.LAT .<= ON_LAT_RANGE[2])
-ts_in_region = (reefs.LON .>= TS_LON_RANGE[1]) .& (reefs.LON .<= TS_LON_RANGE[2]) .&
-               (reefs.LAT .>= TS_LAT_RANGE[1]) .& (reefs.LAT .<= TS_LAT_RANGE[2])
+on_in_region =
+    (reefs.LON .>= ON_LON_RANGE[1]) .& (reefs.LON .<= ON_LON_RANGE[2]) .&
+    (reefs.LAT .>= ON_LAT_RANGE[1]) .& (reefs.LAT .<= ON_LAT_RANGE[2])
+ts_in_region =
+    (reefs.LON .>= TS_LON_RANGE[1]) .& (reefs.LON .<= TS_LON_RANGE[2]) .&
+    (reefs.LAT .>= TS_LAT_RANGE[1]) .& (reefs.LAT .<= TS_LAT_RANGE[2])
 
-on_reef_mask = [any(occursin(r, n) for r in on_study_norm) for n in reef_name_lc] .& on_in_region
-ts_reef_mask = [any(occursin(r, n) for r in ts_study_norm) for n in reef_name_lc] .& ts_in_region
+on_reef_mask =
+    [any(occursin(r, n) for r in on_study_norm) for n in reef_name_lc] .& on_in_region
+ts_reef_mask =
+    [any(occursin(r, n) for r in ts_study_norm) for n in reef_name_lc] .& ts_in_region
 
 # The two featured reefs for inset labels
 moore_mask = occursin.(r"(?i)moore", reefs.reef_name)
@@ -63,7 +69,7 @@ masig_mask = occursin.(r"(?i)masig", reefs.reef_name)
 
 # Additional reefs requested by reviewer
 lizard_mask = occursin.(r"(?i)lizard.*(island|reef)", reefs.reef_name) .& on_in_region
-akone_mask  = occursin.(r"(?i)akone", reefs.reef_name) .& ts_in_region
+akone_mask = occursin.(r"(?i)akone", reefs.reef_name) .& ts_in_region
 # Dungeness has no geopackage entry — coordinates are approximate, verify against source data
 const DUNGENESS_LON = 142.38
 const DUNGENESS_LAT = -10.62
@@ -119,10 +125,10 @@ end
 # Pad around the extent of each study group's reef centroids
 function bbox_with_pad(lons, lats; pad=0.4)
     return (
-        lon_min = minimum(lons) - pad,
-        lon_max = maximum(lons) + pad,
-        lat_min = minimum(lats) - pad,
-        lat_max = maximum(lats) + pad,
+        lon_min=minimum(lons) - pad,
+        lon_max=maximum(lons) + pad,
+        lat_min=minimum(lats) - pad,
+        lat_max=maximum(lats) + pad
     )
 end
 
@@ -131,19 +137,21 @@ end
 
 # ── Natural Earth land polygons (for close-up backgrounds + Australia inset) ──
 land_50m = naturalearth("land", 50)
+places_50m = naturalearth("populated_places", 50)
+coast_50m = naturalearth("coastline", 50)
 
 # Fall back to region bounds if name matching returns nothing
 function safe_bbox(lons, lats, fallback_lon, fallback_lat; pad=0.4)
     isempty(lons) && return (
-        lon_min=fallback_lon[1]-pad, lon_max=fallback_lon[2]+pad,
-        lat_min=fallback_lat[1]-pad, lat_max=fallback_lat[2]+pad)
+        lon_min=fallback_lon[1] - pad, lon_max=fallback_lon[2] + pad,
+        lat_min=fallback_lat[1] - pad, lat_max=fallback_lat[2] + pad)
     return bbox_with_pad(lons, lats; pad=pad)
 end
 
 on_bbox = safe_bbox(reefs.LON[on_reef_mask], reefs.LAT[on_reef_mask],
-                    ON_LON_RANGE, ON_LAT_RANGE; pad=0.3)
+    ON_LON_RANGE, ON_LAT_RANGE; pad=0.3)
 ts_bbox = safe_bbox(reefs.LON[ts_reef_mask], reefs.LAT[ts_reef_mask],
-                    TS_LON_RANGE, TS_LAT_RANGE; pad=0.5)
+    TS_LON_RANGE, TS_LAT_RANGE; pad=0.5)
 
 # Expand both close-up bboxes to the same lon/lat span so panels B and C are
 # plotted at the same geographic scale (same km-per-pixel with DataAspect).
@@ -153,8 +161,8 @@ let
     function _expand(b)
         lon_c = (b.lon_min + b.lon_max) / 2
         lat_c = (b.lat_min + b.lat_max) / 2
-        (lon_min=lon_c - lon_span/2, lon_max=lon_c + lon_span/2,
-         lat_min=lat_c - lat_span/2, lat_max=lat_c + lat_span/2)
+        return (lon_min=lon_c - lon_span / 2, lon_max=lon_c + lon_span / 2,
+            lat_min=lat_c - lat_span / 2, lat_max=lat_c + lat_span / 2)
     end
     global on_bbox = _expand(on_bbox)
     global ts_bbox = _expand(ts_bbox)
@@ -162,43 +170,46 @@ end
 
 # ── Overview extent (full GBR + Torres Strait) ────────────────────────────────
 GBR_LON = (142.0, 155.0)
-GBR_LAT = (-25.5,  -9.5)
+GBR_LAT = (-25.5, -9.5)
 gbr_bbox = (lon_min=GBR_LON[1], lon_max=GBR_LON[2], lat_min=GBR_LAT[1], lat_max=GBR_LAT[2])
 
 # ── Shared styling constants ──────────────────────────────────────────────────
-COL_ON      = :dodgerblue   # Offshore North
-COL_TS      = :darkorange   # Torres Strait
-COL_ALL     = (:gray75, 0.5)
-STAR_SIZE   = 24
-STUDY_SIZE  = 7
-ALL_SIZE    = 2
+COL_ON = :dodgerblue   # Offshore North
+COL_TS = :darkorange   # Torres Strait
+COL_ALL = (:gray75, 0.5)
+STAR_SIZE = 24
+STUDY_SIZE = 7
+ALL_SIZE = 2
 
 # ── Draw a north arrow in the top-right corner of an axis ────────────────────
-function north_arrow!(ax; x=0.5, y=0.1, len=0.6, hw=0.012, ah=0.22, fontsize=12)
+function north_arrow!(ax; x=0.5, y=0.1, len=0.6, hw=0.012, ah=0.22, fontsize=14)
     lines!(ax, [x, x], [y, y + len - ah]; space=:relative, color=:black, linewidth=1.5)
     poly!(ax, Point2f[(x, y + len), (x - hw, y + len - ah), (x + hw, y + len - ah)];
         space=:relative, color=:black)
-    text!(ax, x, y + len + 0.03;
+    return text!(ax, x, y + len + 0.03;
         text="N", space=:relative,
         align=(:center, :bottom), fontsize=fontsize, font=:bold)
 end
 
 # ── Geographic scale bar ──────────────────────────────────────────────────────
-function draw_scale_bar!(ax, bbox; km=50, pad_frac=0.05, fontsize=10, halign=:left)
-    lat_c    = (bbox.lat_min + bbox.lat_max) / 2
-    bar_deg  = km / (111.0 * cosd(lat_c))
+function draw_scale_bar!(ax, bbox; km=50, pad_frac=0.05, fontsize=12, halign=:left)
+    lat_c = (bbox.lat_min + bbox.lat_max) / 2
+    bar_deg = km / (111.0 * cosd(lat_c))
     lon_span = bbox.lon_max - bbox.lon_min
     lat_span = bbox.lat_max - bbox.lat_min
-    x0 = halign === :right ?
+    x0 =
+        halign === :right ?
         bbox.lon_max - lon_span * pad_frac - bar_deg :
         bbox.lon_min + lon_span * pad_frac
-    y0  = bbox.lat_min + lat_span * pad_frac
+    y0 = bbox.lat_min + lat_span * pad_frac
     cap = lat_span * 0.012
     lines!(ax, [x0, x0 + bar_deg], [y0, y0]; color=:white, linewidth=5)     # halo
     lines!(ax, [x0, x0 + bar_deg], [y0, y0]; color=:black, linewidth=2)
-    lines!(ax, [x0, x0], [y0-cap, y0+cap]; color=:black, linewidth=2)
-    lines!(ax, [x0+bar_deg, x0+bar_deg], [y0-cap, y0+cap]; color=:black, linewidth=2)
-    text!(ax, x0 + bar_deg/2, y0 + cap + 0.003;
+    lines!(ax, [x0, x0], [y0 - cap, y0 + cap]; color=:black, linewidth=2)
+    lines!(
+        ax, [x0 + bar_deg, x0 + bar_deg], [y0 - cap, y0 + cap]; color=:black, linewidth=2
+    )
+    return text!(ax, x0 + bar_deg / 2, y0 + cap + 0.003;
         text="$km km", align=(:center, :bottom), fontsize=fontsize)
 end
 
@@ -212,6 +223,76 @@ function draw_land!(ax, land_fc, bbox)
         any(bbox.lat_min .<= ys .<= bbox.lat_max) || continue
         poly!(ax, Point2f.(xs, ys); color=:burlywood,
             strokecolor=(:sienna, 0.6), strokewidth=0.5)
+    end
+end
+
+# ── City labels from Natural Earth populated_places ─────────────────────────────
+
+# Collect coastline vertices clipped to a padded bbox.
+function coast_vertices(coast_fc, bbox; pad=2.0)
+    lons, lats = Float64[], Float64[]
+    function _add!(geom)
+        for p in GI.getpoint(geom)
+            lo, la = GI.x(p), GI.y(p)
+            (
+                bbox.lon_min - pad <= lo <= bbox.lon_max + pad &&
+                bbox.lat_min - pad <= la <= bbox.lat_max + pad
+            ) || continue
+            push!(lons, lo)
+            push!(lats, la)
+        end
+    end
+    for feat in coast_fc
+        isnothing(feat.geometry) && continue
+        gt = GI.geomtrait(feat.geometry)
+        if gt isa GI.MultiLineStringTrait
+            for line in GI.getgeom(feat.geometry)
+                _add!(line)
+            end
+        else
+            _add!(feat.geometry)
+        end
+    end
+    return lons, lats
+end
+
+# Haversine distance in kilometres between two lon/lat points.
+function haversine_km(lo1, la1, lo2, la2)
+    R = 6371.0
+    return R *
+           2asin(
+        sqrt(
+            sin(deg2rad(la2 - la1) / 2)^2 +
+            cos(deg2rad(la1)) * cos(deg2rad(la2)) * sin(deg2rad(lo2 - lo1) / 2)^2)
+    )
+end
+
+"""
+    draw_city_labels!(ax, places_fc, bbox; scalerank_max, fontsize, coast_fc, max_coast_km)
+
+Plot a dot + right-aligned name label for each populated place whose SCALERANK
+is ≤ `scalerank_max`, whose coordinates fall inside `bbox`, and (when `coast_fc`
+is provided) whose nearest coastline vertex is within `max_coast_km` km.
+"""
+function draw_city_labels!(ax, places_fc, bbox; scalerank_max=7, fontsize=11,
+    coast_fc=nothing, max_coast_km=100.0)
+    c_lons, c_lats =
+        isnothing(coast_fc) ? (Float64[], Float64[]) :
+        coast_vertices(coast_fc, bbox)
+    for feat in places_fc
+        isnothing(feat.geometry) && continue
+        lon = GI.x(feat.geometry)
+        lat = GI.y(feat.geometry)
+        bbox.lon_min <= lon <= bbox.lon_max || continue
+        bbox.lat_min <= lat <= bbox.lat_max || continue
+        feat.SCALERANK <= scalerank_max || continue
+        if !isempty(c_lons)
+            minimum(haversine_km(lon, lat, cl, ca)
+                    for (cl, ca) in zip(c_lons, c_lats)) <= max_coast_km || continue
+        end
+        scatter!(ax, [lon], [lat]; color=:black, markersize=5, marker=:circle)
+        text!(ax, lon - 0.15, lat;
+            text=feat.NAME, fontsize=fontsize, align=(:right, :center))
     end
 end
 
@@ -229,7 +310,7 @@ function draw_australia_inset!(fig, position; land_fc, gbr_lon=GBR_LON, gbr_lat=
     by = [gbr_lat[1], gbr_lat[1], gbr_lat[2], gbr_lat[2], gbr_lat[1]]
     lines!(ax_i, bx, by; color=:red, linewidth=2)
     xlims!(ax_i, 112.0, 156.0)
-    ylims!(ax_i, -44.0, -8.0)
+    return ylims!(ax_i, -44.0, -8.0)
 end
 
 # ── Draw the overview panel ───────────────────────────────────────────────────
@@ -253,15 +334,16 @@ function draw_overview!(ax, df, on_mask, ts_mask, moore_mask, masig_mask)
         strokecolor=:white, strokewidth=1, label="Masig Reef")
 
     xlims!(ax, GBR_LON...)
-    ylims!(ax, GBR_LAT...)
+    return ylims!(ax, GBR_LAT...)
 end
 
 # ── Draw a close-up panel ─────────────────────────────────────────────────────
 function draw_closeup!(ax, df, bbox, study_mask, featured_mask;
     study_color=COL_ON, study_label="Study reefs", feat_label="Featured reef"
 )
-    in_box = (df.LON .>= bbox.lon_min) .& (df.LON .<= bbox.lon_max) .&
-             (df.LAT .>= bbox.lat_min) .& (df.LAT .<= bbox.lat_max)
+    in_box =
+        (df.LON .>= bbox.lon_min) .& (df.LON .<= bbox.lon_max) .&
+        (df.LAT .>= bbox.lat_min) .& (df.LAT .<= bbox.lat_max)
 
     # Background reefs — try polygon outlines, scatter as fallback
     bg_mask = in_box .& .!study_mask
@@ -289,7 +371,7 @@ function draw_closeup!(ax, df, bbox, study_mask, featured_mask;
     xlims!(ax, bbox.lon_min, bbox.lon_max)
     ylims!(ax, bbox.lat_min, bbox.lat_max)
     ax.xlabel = "Longitude"
-    ax.ylabel = "Latitude"
+    return ax.ylabel = "Latitude"
 end
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -304,6 +386,7 @@ ax1_ov = Axis(
     fig1[1:2, 1];
     title="Study Context: Great Barrier Reef",
     xlabel="Longitude", ylabel="Latitude",
+    titlesize=18, xlabelsize=18, ylabelsize=18,
     aspect=DataAspect(),
     backgroundcolor=:aliceblue
 )
@@ -313,23 +396,27 @@ draw_overview!(ax1_ov, reefs, on_reef_mask, ts_reef_mask, moore_mask, masig_mask
 if any(moore_mask)
     i = findfirst(moore_mask)
     text!(ax1_ov, reefs.LON[i], reefs.LAT[i] + 0.15;
-        text="Moore", fontsize=9, align=(:center, :bottom))
+        text="Moore", fontsize=11, align=(:center, :bottom))
 end
 if any(masig_mask)
     i = findfirst(masig_mask)
     text!(ax1_ov, reefs.LON[i], reefs.LAT[i] + 0.15;
-        text="Masig", fontsize=9, align=(:center, :bottom))
+        text="Masig", fontsize=11, align=(:center, :bottom))
 end
 scatter!(ax1_ov, [DUNGENESS_LON], [DUNGENESS_LAT];
     color=COL_TS, markersize=STUDY_SIZE)
 draw_scale_bar!(ax1_ov, gbr_bbox; km=200, halign=:right)
-Label(fig1[1:2, 1, TopLeft()], "(A)"; fontsize=16, font=:bold, padding=(4, 0, 4, 0))
+draw_city_labels!(
+    ax1_ov, places_50m, gbr_bbox; scalerank_max=6, coast_fc=coast_50m, max_coast_km=100.0
+)
+Label(fig1[1:2, 1, TopLeft()], "(A)"; fontsize=18, font=:bold, padding=(4, 0, 4, 0))
 draw_australia_inset!(fig1, (1:2, 1); land_fc=land_50m)
 
 ax1_ts = Axis(
     fig1[1, 2];
     title="Torres Strait",
     xlabel="Longitude", ylabel="Latitude",
+    titlesize=18, xlabelsize=18, ylabelsize=18,
     aspect=DataAspect(),
     backgroundcolor=:aliceblue
 )
@@ -339,24 +426,25 @@ draw_closeup!(ax1_ts, reefs, ts_bbox, ts_reef_mask, masig_mask;
 if any(masig_mask)
     i = findfirst(masig_mask)
     text!(ax1_ts, reefs.LON[i], reefs.LAT[i] + 0.08;
-        text="Masig", fontsize=9, align=(:center, :bottom))
+        text="Masig", fontsize=11, align=(:center, :bottom))
 end
 if any(akone_mask)
     i = findfirst(akone_mask)
-    text!(ax1_ts, reefs.LON[i], reefs.LAT[i] + 0.08;
-        text="Aukane", fontsize=9, align=(:center, :bottom))
+    text!(ax1_ts, reefs.LON[i] + 0.08, reefs.LAT[i];
+        text="Aukane", fontsize=11, align=(:left, :center))
 end
 scatter!(ax1_ts, [DUNGENESS_LON], [DUNGENESS_LAT];
     color=COL_TS, markersize=STUDY_SIZE)
-text!(ax1_ts, DUNGENESS_LON, DUNGENESS_LAT + 0.08;
-    text="Dungeness", fontsize=9, align=(:center, :bottom))
+text!(ax1_ts, DUNGENESS_LON + 0.04, DUNGENESS_LAT + 0.04;
+    text="Dungeness", fontsize=11, align=(:left, :bottom))
 draw_scale_bar!(ax1_ts, ts_bbox; km=50)
-Label(fig1[1, 2, TopLeft()], "(B)"; fontsize=16, font=:bold, padding=(4, 0, 4, 0))
+Label(fig1[1, 2, TopLeft()], "(B)"; fontsize=18, font=:bold, padding=(4, 0, 4, 0))
 
 ax1_on = Axis(
     fig1[2, 2];
     title="Offshore North",
     xlabel="Longitude", ylabel="Latitude",
+    titlesize=18, xlabelsize=18, ylabelsize=18,
     aspect=DataAspect(),
     backgroundcolor=:aliceblue
 )
@@ -366,15 +454,15 @@ draw_closeup!(ax1_on, reefs, on_bbox, on_reef_mask, moore_mask;
 if any(moore_mask)
     i = findfirst(moore_mask)
     text!(ax1_on, reefs.LON[i], reefs.LAT[i] + 0.06;
-        text="Moore", fontsize=9, align=(:center, :bottom))
+        text="Moore", fontsize=11, align=(:center, :bottom))
 end
 if any(lizard_mask)
     i = findfirst(lizard_mask)
     text!(ax1_on, reefs.LON[i], reefs.LAT[i] + 0.06;
-        text="Lizard Is.", fontsize=9, align=(:center, :bottom))
+        text="Lizard Is.", fontsize=11, align=(:center, :bottom))
 end
 draw_scale_bar!(ax1_on, on_bbox; km=50)
-Label(fig1[2, 2, TopLeft()], "(C)"; fontsize=16, font=:bold, padding=(4, 0, 4, 0))
+Label(fig1[2, 2, TopLeft()], "(C)"; fontsize=18, font=:bold, padding=(4, 0, 4, 0))
 
 colsize!(fig1.layout, 1, Auto(0.5))
 colsize!(fig1.layout, 2, Auto(0.25))
@@ -382,12 +470,12 @@ colsize!(fig1.layout, 2, Auto(0.25))
 Legend(
     fig1[3, 1],
     [
-        MarkerElement(color=COL_ON,   marker=:circle, markersize=STUDY_SIZE),
-        MarkerElement(color=COL_TS,   marker=:circle, markersize=STUDY_SIZE),
-        MarkerElement(color=COL_ON,   marker=:star5,  markersize=STAR_SIZE,
-                      strokecolor=:white, strokewidth=1),
-        MarkerElement(color=COL_TS,   marker=:star5,  markersize=STAR_SIZE,
-                      strokecolor=:white, strokewidth=1),
+        MarkerElement(; color=COL_ON, marker=:circle, markersize=STUDY_SIZE),
+        MarkerElement(; color=COL_TS, marker=:circle, markersize=STUDY_SIZE),
+        MarkerElement(; color=COL_ON, marker=:star5, markersize=STAR_SIZE,
+            strokecolor=:white, strokewidth=1),
+        MarkerElement(; color=COL_TS, marker=:star5, markersize=STAR_SIZE,
+            strokecolor=:white, strokewidth=1)
     ],
     ["Offshore North reefs", "Torres Strait reefs", "Moore Reef", "Masig Reef"];
     orientation=:horizontal, framevisible=false, nbanks=2, labelsize=14
@@ -398,7 +486,7 @@ hidedecorations!(ax1_north)
 hidespines!(ax1_north)
 xlims!(ax1_north, 0, 1)
 ylims!(ax1_north, 0, 1)
-north_arrow!(ax1_north; fontsize=14)
+north_arrow!(ax1_north; fontsize=16)
 
 fig1_path = joinpath(FIG_DIR, "study_area_overview.png")
 save(fig1_path, fig1; px_per_unit=DPI)

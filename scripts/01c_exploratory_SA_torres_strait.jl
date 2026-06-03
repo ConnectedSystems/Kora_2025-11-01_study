@@ -13,7 +13,7 @@ stats_of_interest = [:mean, :std]
 for reg_scale in region_scale
     for rt in reef_target
         model_results = CoralFlow.process_ecorrap_models(
-            joinpath(EXT_DATA_DIR, "ecorrap_adult_juv_combined_2021_2023_24062025.csv"),
+            joinpath(DATA_DIR, "ecorrap_expanded.parquet"),
             joinpath(OUTPUT_DIR, "ecorrap_to_cscape_species.csv");
             region=reg_scale,
             reef=rt,
@@ -35,7 +35,9 @@ for reg_scale in region_scale
             human_scale_name = human_region_name
         end
 
-        fig_output = joinpath(FIG_DIR, "sensitivity", reg_scale, isnothing(rt) ? "overall" : rt)
+        fig_output = joinpath(
+            FIG_DIR, "sensitivity", reg_scale, isnothing(rt) ? "overall" : rt
+        )
         mkpath(fig_output)
 
         ##### Overall ####
@@ -70,6 +72,10 @@ for reg_scale in region_scale
         cleanup_features!(all_surv)
         rename_for_display!(all_growth)
         rename_for_display!(all_surv)
+
+        # Hacky fudge - some years don't have temperature data
+        replace!(all_growth.temperature, NaN => -1.0)
+        replace!(all_surv.temperature, NaN => -1.0)
 
         Si_growth = pawn(all_growth, all_y_growth; S=10)
         f = plot_pawn_heatmap(Si_growth, "Growth - $(human_scale_name)")
@@ -133,6 +139,10 @@ for reg_scale in region_scale
             cleanup_features!(X_growth)
             rename_for_display!(X_surv)
             rename_for_display!(X_growth)
+
+            # Hacky fudge - some years don't have temperature data
+            replace!(X_growth.temperature, NaN => -1.0)
+            replace!(X_surv.temperature, NaN => -1.0)
 
             Si_growth = pawn(X_growth, y_size; S=10)
             f = plot_pawn_heatmap(Si_growth, "Growth - $(human_scale_name)\n$(group_title)")

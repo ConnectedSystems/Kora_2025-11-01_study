@@ -43,6 +43,7 @@ function binned_sa(
         bin_details[i, :] .= bin_start, bin_mean, bin_end
 
         Si = pawn(data[bin_sel, :], y_values[bin_sel]; S=10)[PAWNᵢ=At(:mean)]
+
         g_bin[i, :] = Si
     end
 
@@ -165,6 +166,10 @@ function process_region_sensitivity(
     @info "Preparing survival data..."
     all_surv, all_y_surv, surv_diams = prepare_survival_data(model_results)
 
+    # Hacky fudge - some years don't have temperature data
+    replace!(all_growth.temperature, NaN => -1.0)
+    replace!(all_surv.temperature, NaN => -1.0)
+
     # Perform sensitivity analyses
     @info "Analyzing growth sensitivity..."
     g_bin_growth, bin_details_growth, per_bin_sample_growth = binned_sa(
@@ -206,8 +211,8 @@ end
 # Main analysis
 # Each region uses its own EcoRRAP data file
 region_data = [
-    ("offshore_north", joinpath(EXT_DATA_DIR, "EcoRRAP data for IPM_250624.csv")),
-    ("torres_strait",  joinpath(EXT_DATA_DIR, "ecorrap_adult_juv_combined_2021_2023_24062025.csv")),
+    ("offshore_north", joinpath(OUTPUT_DIR, "ecorrap_expanded.parquet")),
+    ("torres_strait", joinpath(OUTPUT_DIR, "ecorrap_expanded.parquet"))
 ]
 species_file = joinpath(OUTPUT_DIR, "ecorrap_to_cscape_species.csv")
 

@@ -25,20 +25,25 @@ DPI = 300 / 96  # desired unit / pixels per inch
 # Unnecessary/correlated factors to remove
 surv_ignore_cols = [
     :class_train, :class_test, :class_train_mean, :class_test_mean, :surv_logclass,
-    :logdiam, Symbol("days_t1.t2"), :cluster, :bleaching_scores,
-    :surv, :diam, :survival_use, :growth_use, :class_test_std,
+    :logdiam, Symbol("days_t1.t2"), :cluster, :bleaching_scores, :cscape_group,
+    :surv, :diam, :diamnext, :survival_use, :growth_use, :class_test_std,
     :class_train_std, :depth_category, :dataset, :water_clarity,
     :site_new, :transition, :plot, :size, :sizenext,
     :clarified_note_2023_july, Symbol("clarified_note_2023.1"),
     :clarified_note_2021, :clarified_note_2022, :clarified_note_2023,
     :date_2021, :date_2022, :date_2023,
     :coral_cover_2021, :coral_cover_2022, :coral_cover_2023,
-    :est_1yo_growth, :growth_rate
+    :est_1yo_growth, :growth_rate,
+    :n_days_temp, :date_t1, :date_t2, :psal_mean_mean, :psal_mean_median,
+    :n_days_psal, :cspd_mean_mean, :cspd_mean_median, :n_days_cspd, :wave_hs_mean,
+    :wave_hs_median,
+    :n_days_waves, :par_dli_mean, :par_dli_median, :n_days_par,
+    :temp_mean_mean, :temp_mean_median, :temp_max_median
 ]
 
 growth_ignore_cols = [
     :class_train, :class_test, :class_train_mean, :class_test_mean, :surv_logclass,
-    :logdiam, Symbol("days_t1.t2"), :cluster, :bleaching_scores,
+    :logdiam, Symbol("days_t1.t2"), :cluster, :bleaching_scores, :cscape_group,
     :surv, :diamnext, :survival_use, :growth_use, :class_test_std,
     :class_train_std, :depth_category, :dataset, :water_clarity,
     :site_new, :transition, :plot, :logdiam, :growth, :lin_ext, :size, :sizenext,
@@ -46,7 +51,12 @@ growth_ignore_cols = [
     :clarified_note_2021, :clarified_note_2022, :clarified_note_2023,
     :date_2021, :date_2022, :date_2023,
     :coral_cover_2021, :coral_cover_2022, :coral_cover_2023,
-    :est_1yo_growth, :growth_rate
+    :est_1yo_growth, :growth_rate,
+    :n_days_temp, :date_t1, :date_t2, :psal_mean_mean, :psal_mean_median,
+    :n_days_psal, :cspd_mean_mean, :cspd_mean_median, :n_days_cspd, :wave_hs_mean,
+    :wave_hs_median,
+    :n_days_waves, :par_dli_mean, :par_dli_median, :n_days_par,
+    :temp_mean_mean, :temp_mean_median, :temp_max_median
 ]
 
 ENSEMBLE_PARAM_NAMES = [
@@ -82,24 +92,35 @@ function cleanup_features!(X::DataFrame)
         end
 
         if eltype(X[!, n]) <: Union{Float64,Missing}
-            X[!, n] .= Float64.(X[!, n])
+            # Use coalesce to handle missing values and cast to Float64 in one pass
+            X[!, n] = [coalesce(x, NaN) for x in X[!, n]]
         end
+        # if eltype(X[!, n]) <: Union{Float64,Missing}
+        #     try
+        #         X[!, n] .= Float64.(X[!, n])
+        #     catch
+        #         Main.@infiltrate
+        #     end
+        # end
 
         if eltype(X[!, n]) <: Union{Int64,Missing}
-            X[!, n] .= Int64.(X[!, n])
+            X[!, n] = [coalesce(x, 0) for x in X[!, n]]
         end
     end
 end
 
 const _DISPLAY_RENAMES = Dict(
     :Cscape_group => :functional_group,
-    :diam      => :diameter,
+    :cscape_group => :functional_group,
+    :diam => :diameter,
     :diam_mort => :diameter,
-    :temp => :temperature,
     :depth_cont => :depth,
     :plot_uid => :plot,
     :site_uid => :site,
-    :ubed90_median => :bottom_stress
+    :ubed90_median => :bottom_stress,
+    :temp => :temperature,
+    :temp_max_mean => :temperature,
+    :habitat_area => :habitat
 )
 
 function rename_for_display!(df::DataFrame)
@@ -126,28 +147,28 @@ function plot_pawn_heatmap(
     xticklabelrotation::Real=π / 8
 )
     # Sort factors by mean PAWN index — slice scalar At() to avoid At(vector) ambiguity
-    factor_order  = sortperm(collect(Si[PAWNᵢ=At(:mean)]); rev=true)
+    factor_order = sortperm(collect(Si[PAWNᵢ=At(:mean)]); rev=true)
     factor_labels = string.(collect(Si.axes[1]))[factor_order]
 
     # Build data matrix by stacking individual stat slices (n_factors × n_stats)
     data = hcat([collect(Si[PAWNᵢ=At(s)])[factor_order] for s in stats]...)
     stat_labels = string.(stats)
 
-    f  = Figure(; size=fig_size)
+    f = Figure(; size=fig_size)
     ax = Axis(f[1, 1])
     hm = heatmap!(ax, data; colorrange=(-0.1, max(maximum(data), 0.1)), colormap=:viridis)
     Colorbar(f[1, 2], hm; label="PAWN Index")
 
-    ax.xticks             = (1:length(factor_labels), factor_labels)
-    ax.yticks             = (1:length(stat_labels),   stat_labels)
-    ax.yreversed          = true
+    ax.xticks = (1:length(factor_labels), factor_labels)
+    ax.yticks = (1:length(stat_labels), stat_labels)
+    ax.yreversed = true
     ax.xticklabelrotation = xticklabelrotation
-    ax.xlabelsize         = 14
-    ax.ylabelsize         = 14
-    ax.xticklabelsize     = 12
-    ax.yticklabelsize     = 12
-    ax.titlesize          = 14
-    ax.title              = title
+    ax.xlabelsize = 14
+    ax.ylabelsize = 14
+    ax.xticklabelsize = 12
+    ax.yticklabelsize = 12
+    ax.titlesize = 14
+    ax.title = title
 
     return f
 end
@@ -166,10 +187,10 @@ function export_model_summaries(fits, output_dir::String, prefix::String)
     perf = fits.performance
     metrics = keys(perf.train)  # e.g. (:RMSE, :R2, :pearson, :spearman, :kendall)
 
-    cols = Dict{Symbol, Vector}(:Group => collect(fits.names))
+    cols = Dict{Symbol,Vector}(:Group => collect(fits.names))
     for m in metrics
         cols[Symbol("Train_$(m)")] = collect(Float64.(perf.train[m]))
-        cols[Symbol("Test_$(m)")]  = collect(Float64.(perf.test[m]))
+        cols[Symbol("Test_$(m)")] = collect(Float64.(perf.test[m]))
     end
 
     # Interleave Train/Test columns for readability
@@ -187,7 +208,7 @@ function export_model_summaries(fits, output_dir::String, prefix::String)
         Group=collect(fits.names),
         Model=string.(polys)
     )
-    CSV.write(joinpath(output_dir, "$(prefix)_coefficients.csv"), coeff_df)
+    return CSV.write(joinpath(output_dir, "$(prefix)_coefficients.csv"), coeff_df)
 end
 
 include(joinpath(@__DIR__, "..", "src", "sensitivity.jl"))
