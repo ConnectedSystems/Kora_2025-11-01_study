@@ -12,7 +12,7 @@ reef_target = [nothing, "masig"]
 stats_of_interest = [:mean, :std]
 for reg_scale in region_scale
     for rt in reef_target
-        model_results = CoralFlow.process_ecorrap_models(
+        model_results = Kora.process_ecorrap_models(
             joinpath(DATA_DIR, "ecorrap_expanded.parquet"),
             joinpath(OUTPUT_DIR, "ecorrap_to_cscape_species.csv");
             region=reg_scale,
@@ -103,8 +103,8 @@ for reg_scale in region_scale
         for taxa in keys(model_results.growth_groupings)
             @info "Assessing $(taxa)"
 
-            g_id = first(findall(CoralFlow.TARGET_GROUPS .== taxa))
-            group_title = CoralFlow.GROUP_NAMES[g_id]
+            g_id = first(findall(Kora.TARGET_GROUPS .== taxa))
+            group_title = Kora.GROUP_NAMES[g_id]
 
             X_growth = copy(model_results.growth_groupings[taxa])
             y_size = Float64.(model_results.growth_groupings[taxa].est_1yo_growth)
@@ -161,4 +161,89 @@ end
 
 for s in Si_surv_data
     @info s.data
+end
+
+# ─── Wave-subset sensitivity analysis ────────────────────────────────────────
+#
+# wave_hs_mean is sparsely covered (good for TSMA D; ~1 year for ONMO D) so it
+# is excluded from the main SA to preserve full sample size.  Here we repeat
+# the overall SA on the subset of observations that DO have wave data, with
+# wave_hs_mean included as a feature.  The reduced-n runs are saved separately
+# so figures from the main analysis are not overwritten.
+#
+# Comparison between the wave-subset run (with wave) and the same subset run
+# (without wave) reveals wave's marginal contribution independent of
+# sample-size changes.
+
+@info "Running wave-subset SA for Torres Strait"
+
+for reg_scale in region_scale
+    for rt in reef_target
+        # Reload the collated groupings written above
+        scale_fn   = isnothing(rt) ? reg_scale : reg_scale * "_" * rt
+        reef_dir   = joinpath(OUTPUT_DIR, reg_scale, isnothing(rt) ? "overall" : rt)
+        wave_fig_dir = joinpath(
+            FIG_DIR, "sensitivity", reg_scale,
+            isnothing(rt) ? "overall" : rt, "wave_subset"
+        )
+        mkpath(wave_fig_dir)
+
+        human_region_name = titlecase(replace(reg_scale, "_" => " "))
+        human_scale_name = if isnothing(rt)
+            human_region_name
+        else
+            titlecase(replace(rt, "_" => " ")) * " Reef ($(human_region_name))"
+        end
+
+        all_growth = CSV.read(joinpath(reef_dir, scale_fn * "_growth.csv"), DataFrame)
+        all_surv   = CSV.read(joinpath(reef_dir, scale_fn * "_survival.csv"), DataFrame)
+
+        # Filter to rows with wave data
+        wave_growth = filter(r -> !ismissing(r.wave_hs_mean) && !isnan(r.wave_hs_mean), all_growth)
+        wave_surv   = filter(r -> !ismissing(r.wave_hs_mean) && !isnan(r.wave_hs_mean), all_surv)
+
+        @info "Wave subset sizes" growth=nrow(wave_growth) survival=nrow(wave_surv) scale=scale_fn
+
+        # ── helper: build SA-ready feature matrix with wave optionally included ──
+        function prepare_wave_features(df::DataFrame, ignore_cols_base, include_wave::Bool)
+            extra_drop = include_wave ?
+                filter(!=(Symbol("wave_hs_mean")), [:wave_hs_median, :n_days_waves]) :
+                [:wave_hs_mean, :wave_hs_median, :n_days_waves]
+            drop = [c for c in vcat(ignore_cols_base, extra_drop) if c in propertynames(df)]
+            X = select(df, Not(drop))
+            cleanup_features!(X)
+            rename_for_display!(X)
+            return X
+        end
+
+        for include_wave in (false, true)
+            suffix = include_wave ? "with_wave" : "no_wave"
+            title_suffix = include_wave ? " [wave incl.]" : " [wave excl.]"
+
+            # ── growth ──
+            y_growth = wave_growth.est_1yo_growth
+            X_growth = prepare_wave_features(wave_growth, growth_ignore_cols, include_wave)
+            replace!(X_growth.temperature, NaN => -1.0)
+
+            Si_g = pawn(X_growth, y_growth; S=10)
+            f = plot_pawn_heatmap(
+                Si_g,
+                "Growth (wave subset) - $(human_scale_name)$(title_suffix)\nn = $(nrow(X_growth))"
+            )
+            save(joinpath(wave_fig_dir, "Si_$(scale_fn)_growth_$(suffix).png"), f; px_per_unit=DPI)
+
+            # ── survival ──
+            y_surv_raw = wave_surv.surv
+            y_surv = Int64.(coalesce.(y_surv_raw, 0))
+            X_surv = prepare_wave_features(wave_surv, surv_ignore_cols, include_wave)
+            replace!(X_surv.temperature, NaN => -1.0)
+
+            Si_s = pawn(X_surv, convert.(Float64, y_surv); S=10)
+            f = plot_pawn_heatmap(
+                Si_s,
+                "Survival (wave subset) - $(human_scale_name)$(title_suffix)\nn = $(nrow(X_surv))"
+            )
+            save(joinpath(wave_fig_dir, "Si_$(scale_fn)_survival_$(suffix).png"), f; px_per_unit=DPI)
+        end
+    end
 end

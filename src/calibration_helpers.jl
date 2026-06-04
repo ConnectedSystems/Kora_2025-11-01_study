@@ -232,18 +232,18 @@ function create_objective_function(
         #     return 1e10 * abs(1.0 - sum(x[2:6]))
         # end
 
-        CoralFlow.set_population!(reef_state, x)
+        Kora.set_population!(reef_state, x)
 
         if use_scalers
-            n_grps = CoralFlow.n_groups(reef_state)
+            n_grps = Kora.n_groups(reef_state)
             scaler_end = 17 + n_grps - 1
             loc_scalers = x[17:scaler_end]
-            CoralFlow.assign_scalers!(reef_state, loc_scalers)
+            Kora.assign_scalers!(reef_state, loc_scalers)
 
             recruitment_proportion = x[end - 1]
             self_seeding_proportion = x[end]
 
-            CoralFlow.run_model!(
+            Kora.run_model!(
                 reef_state,
                 env_conditions;
                 recruits=Float32(recruitment_proportion),
@@ -251,10 +251,10 @@ function create_objective_function(
                 rng=rng
             )
         else
-            CoralFlow.run_model!(reef_state, env_conditions; rng=rng)
+            Kora.run_model!(reef_state, env_conditions; rng=rng)
         end
 
-        cover = CoralFlow.coral_cover(reef_state)
+        cover = Kora.coral_cover(reef_state)
         cover ./= area
         sims = cover[sim_indices]
 
@@ -268,8 +268,8 @@ function create_objective_function(
         init_mae = abs(sims[1] - obs[1])
         end_mae = abs(sims[end] - obs[end])
         We = (init_mae + end_mae)
-        # rmse = CoralFlow.RMSE(sims, obs)
-        pearson = 1.0 - abs(CoralFlow.pearson(sims, obs))
+        # rmse = Kora.RMSE(sims, obs)
+        pearson = 1.0 - abs(Kora.pearson(sims, obs))
 
         sim_μ, std_hat = mean_and_std(sims)
 
@@ -285,7 +285,7 @@ function create_objective_function(
         # slope_penalty = calculate_slope_penalty(covers)
 
         # Penalize trajectories where a group falls below 1% more than 3 times
-        covers = CoralFlow.group_cover_timeseries(reef_state)
+        covers = Kora.group_cover_timeseries(reef_state)
         low_cover_penalty = sum(count(covers .< 1.0; dims=1) .> 3)
 
         # Alignment with benthic observations
@@ -707,11 +707,11 @@ function calculate_performance_metrics(sim::Vector{Float64}, obs::Vector{Float64
     # Error metrics
     init_mae = mean(abs(sim[1] - obs[1]))
     end_mae = mean(abs(sim[end] - obs[end]))
-    rmse = CoralFlow.RMSE(sim, obs)
+    rmse = Kora.RMSE(sim, obs)
 
     # Correlation
-    kendall = CoralFlow.kendall(sim, obs)
-    pearson = CoralFlow.pearson(sim, obs)
+    kendall = Kora.kendall(sim, obs)
+    pearson = Kora.pearson(sim, obs)
 
     # Bias
     u = abs((mean(sim) / mean(obs)) - 1.0)
@@ -781,14 +781,14 @@ function plot_calibration_results(
 
     c_bf_obs = reef_obs.MEAN_LIVE_CORAL[c_ref_indices]
     c_bf_rmse = round(
-        CoralFlow.RMSE(cover[c_sim_indices], c_bf_obs); digits=2
+        Kora.RMSE(cover[c_sim_indices], c_bf_obs); digits=2
     )
 
     # Compute validation RMSE for best fit (post-disturbance manta tow years)
     v_bf_val_rmse = nothing
     if !isnothing(v_sim_indices) && !isempty(v_sim_indices)
         v_bf_obs_val = reef_obs.MEAN_LIVE_CORAL[v_ref_indices]
-        v_bf_val_rmse = round(CoralFlow.RMSE(cover[v_sim_indices], v_bf_obs_val); digits=2)
+        v_bf_val_rmse = round(Kora.RMSE(cover[v_sim_indices], v_bf_obs_val); digits=2)
     end
 
     # Compute ensemble metrics and build annotation string
@@ -799,10 +799,10 @@ function plot_calibration_results(
         c_obs = reef_obs.MEAN_LIVE_CORAL[c_ref_indices]
 
         c_rmse = round(
-            CoralFlow.RMSE(ensemble_mean[c_sim_indices], c_obs); digits=2
+            Kora.RMSE(ensemble_mean[c_sim_indices], c_obs); digits=2
         )
         c_pearson = round(
-            CoralFlow.pearson(ensemble_mean[c_sim_indices], c_obs); digits=2
+            Kora.pearson(ensemble_mean[c_sim_indices], c_obs); digits=2
         )
 
         v_aligned = ecorrap_overlap_idx[v_ecorrap]
@@ -826,7 +826,7 @@ function plot_calibration_results(
         if !isnothing(v_sim_indices) && !isempty(v_sim_indices)
             v_ens_obs_val = reef_obs.MEAN_LIVE_CORAL[v_ref_indices]
             v_ens_val_rmse = round(
-                CoralFlow.RMSE(ensemble_mean[v_sim_indices], v_ens_obs_val); digits=2
+                Kora.RMSE(ensemble_mean[v_sim_indices], v_ens_obs_val); digits=2
             )
         end
 

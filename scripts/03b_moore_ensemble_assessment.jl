@@ -389,30 +389,30 @@ function create_timeseries_function(
 
         x = vcat(x[1], gamma_to_dirichlet(x[2:6]), x[7:end])
 
-        CoralFlow.set_population!(rs, x)
+        Kora.set_population!(rs, x)
 
         if use_scalers
-            n_grps = CoralFlow.n_groups(rs)
+            n_grps = Kora.n_groups(rs)
             scaler_end = 17 + n_grps - 1
             loc_scalers = x[17:scaler_end]
-            CoralFlow.assign_scalers!(rs, loc_scalers)
+            Kora.assign_scalers!(rs, loc_scalers)
             recruitment_proportion = x[end - 1]
             self_seeding_proportion = x[end]
-            CoralFlow.run_model!(
+            Kora.run_model!(
                 rs, env_conditions;
                 recruits=Float32(recruitment_proportion),
                 self_seed=Float32(self_seeding_proportion),
                 rng=rng
             )
         else
-            CoralFlow.run_model!(rs, env_conditions; rng=rng)
+            Kora.run_model!(rs, env_conditions; rng=rng)
         end
 
         if return_by_group
             # (n_timesteps × n_groups) — enables per-group temporal PAWN
-            return CoralFlow.group_cover_timeseries(rs) ./ area
+            return Kora.group_cover_timeseries(rs) ./ area
         else
-            cover = CoralFlow.coral_cover(rs)
+            cover = Kora.coral_cover(rs)
             return cover ./ area
         end
     end
@@ -586,7 +586,7 @@ fn_temporal_ts_bygroup = joinpath(
 
 if !isfile(fn_temporal_ts_bygroup)
     n_candidates = size(ensemble_params, 2)
-    n_grps = CoralFlow.n_groups(reef_state)
+    n_grps = Kora.n_groups(reef_state)
 
     model_ts_runner = create_timeseries_function(
         reef_state, env_conditions, reef_config.area, 89, true
@@ -725,7 +725,7 @@ save(
 )
 
 # ── Per-group temporal PAWN ───────────────────────────────────────────────────
-group_names = CoralFlow.TARGET_GROUPS
+group_names = Kora.TARGET_GROUPS
 for g in axes(ts_outputs_bygroup, 3)
     pawn_g = Matrix{Float64}(undef, n_params, n_sim_steps)
     for t in 1:n_sim_steps

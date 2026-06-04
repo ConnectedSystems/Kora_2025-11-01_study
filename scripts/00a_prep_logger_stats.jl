@@ -20,6 +20,7 @@ using DataFrames
 using Parquet2
 using Statistics
 using Dates
+using CairoMakie
 
 const OCN_DIR = joinpath(@__DIR__, "..", "data", "ecorrap_logger")
 const OUTPUT_FILE = joinpath(OCN_DIR, "ocn_annual_stats.parquet")
@@ -27,6 +28,7 @@ const WINDOW_TYPE = :survey_year
 
 # Minimum days of data required in a period before emitting a warning
 const MIN_COVERAGE_DAYS = 90
+const FIGS_DIR = joinpath(@__DIR__, "..", "data", "logger_report", "figs")
 
 # ─── Period assignment ────────────────────────────────────────────────────────
 
@@ -446,6 +448,134 @@ function process_depth_stats(window::Symbol)::DataFrame
     return stats
 end
 
+# ─── Daily presence ─────────────────────────────────────────────────────────────
+
+"""
+Collect raw daily presence indicators for all logger variable types.
+Returns a DataFrame with columns: site_code, depth_cat, variable, date.
+One row per unique (site, depth, variable, day) combination where at least
+one required measurement column is non-missing.
+"""
+function collect_daily_presence()::DataFrame
+    configs = [
+        ("TEMP_STATS",  "TEMP",  [:MEAN],            nothing),
+        ("PSAL_STATS",  "PSAL",  [:MEAN],            nothing),
+        ("CSPD_STATS",  "CSPD",  [:MEAN],            nothing),
+        ("WAVES_CSV",   "WAVES", [:WSSH],            fn -> contains(fn, "_W_") && endswith(fn, "_waves.csv")),
+        ("PAR_CSV",     "PAR",   [:dli_sum_deltat],  fn -> endswith(fn, "_dli.csv")),
+        ("DEPTH_STATS", "DEPTH", [:MIN],             nothing),
+    ]
+
+    records = Set{Tuple{String,String,String,Date}}()
+
+    for (subdir, varname, req, filt) in configs
+        files = find_csv_files(joinpath(OCN_DIR, subdir), filt)
+        for fp in files
+            try
+                meta = parse_ocn_header(fp)
+                info = extract_header_meta(meta)
+                isempty(info.site_code) && continue
+                df = read_ocn_csv(fp)
+                isempty(df) && continue
+                all(c -> c ∈ propertynames(df), req) || continue
+                df.TIME = DateTime.(df.TIME)
+                # A day counts as present if at least one required column is non-missing
+                mask = reduce(
+                    (a, c) -> a .| coalesce.(.!ismissing.(df[!, c]), false),
+                    req; init=falses(nrow(df))
+                )
+                for d in unique(Date.(df[mask, :TIME]))
+                    push!(records, (info.site_code, info.depth_cat, varname, d))
+                end
+            catch e
+                @warn "Skipping file for presence" file=basename(fp) error=e
+            end
+        end
+    end
+
+    isempty(records) && return DataFrame(
+        site_code=String[], depth_cat=String[], variable=String[], date=Date[]
+    )
+    rows = collect(records)
+    return DataFrame(
+        site_code = [r[1] for r in rows],
+        depth_cat = [r[2] for r in rows],
+        variable  = [r[3] for r in rows],
+        date      = [r[4] for r in rows],
+    )
+end
+
+"""
+Generate and save a binary daily data availability heatmap.
+Rows are (site_code, depth_cat, variable) combinations sorted by variable
+then site then depth, with separator lines between variable groups.
+"""
+function plot_daily_availability(presence::DataFrame, figs_dir::String)
+    isempty(presence) && (@warn "No presence data; skipping availability heatmap"; return)
+
+    # Build sorted y-axis labels: variable → site → depth
+    labels_df = unique(select(presence, [:variable, :site_code, :depth_cat]))
+    sort!(labels_df, [:variable, :site_code, :depth_cat])
+    ylabels   = labels_df.site_code .* " " .* labels_df.depth_cat .* " (" .* labels_df.variable .* ")"
+    label_idx = Dict(
+        (r.variable, r.site_code, r.depth_cat) => i
+        for (i, r) in enumerate(eachrow(labels_df))
+    )
+
+    date_min  = minimum(presence.date)
+    date_max  = maximum(presence.date)
+    all_dates = date_min:Day(1):date_max
+    n_dates   = length(all_dates)
+    n_labels  = length(ylabels)
+    date_idx  = Dict(d => i for (i, d) in enumerate(all_dates))
+
+    # Binary presence matrix: rows = days, cols = labels
+    mat = zeros(Float32, n_dates, n_labels)
+    for row in eachrow(presence)
+        i = get(date_idx, row.date, 0)
+        j = get(label_idx, (row.variable, row.site_code, row.depth_cat), 0)
+        (i > 0 && j > 0) && (mat[i, j] = 1f0)
+    end
+
+    n_years    = max(1, year(date_max) - year(date_min) + 1)
+    fig_width  = clamp(80 * n_years, 900, 2400)
+    fig_height = 20 * n_labels + 120
+
+    fig = Figure(size=(fig_width, fig_height))
+    ax  = Axis(fig[1, 1];
+        title          = "Raw daily logger data availability",
+        xlabel         = "Date",
+        yticks         = (1:n_labels, ylabels),
+        yreversed      = true,
+        xticklabelsize = 10,
+        yticklabelsize = 9,
+    )
+
+    heatmap!(ax, 1:n_dates, 1:n_labels, mat;
+        colormap   = [:white, :teal],
+        colorrange = (0f0, 1f0),
+    )
+
+    # Year-boundary ticks on x-axis
+    year_dates = filter(d -> month(d) == 1 && day(d) == 1, collect(all_dates))
+    if !isempty(year_dates)
+        ax.xticks = (
+            [Dates.value(d - date_min) + 1 for d in year_dates],
+            string.(year.(year_dates)),
+        )
+    end
+
+    # Separator lines between variable groups
+    var_changes = [i for i in 2:n_labels if labels_df.variable[i] != labels_df.variable[i-1]]
+    for vc in var_changes
+        hlines!(ax, vc - 0.5; color=:black, linewidth=1)
+    end
+
+    out = joinpath(figs_dir, "data_availability.png")
+    save(out, fig; px_per_unit=2)
+    @info "Saved availability heatmap" file=out
+end
+
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 @info "Processing oceanographic data with window_type = :$(WINDOW_TYPE)"
@@ -476,3 +606,8 @@ sort!(all_stats, [:site_code, :depth_cat, :period_year])
 Parquet2.writefile(OUTPUT_FILE, all_stats)
 
 @info "Done. Output: $OUTPUT_FILE"
+
+# ─── Data availability heatmap ────────────────────────────────────────────────
+mkpath(FIGS_DIR)
+presence = collect_daily_presence()
+plot_daily_availability(presence, FIGS_DIR)

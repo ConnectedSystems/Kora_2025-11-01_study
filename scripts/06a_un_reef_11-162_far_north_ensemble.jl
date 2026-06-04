@@ -105,7 +105,7 @@ function run_calibration(
     # Initialize model
     @info "Initializing reef state..."
     n_ts = length(historic_dhw)
-    reef_state = CoralFlow.initialize_reef(;
+    reef_state = Kora.initialize_reef(;
         n_timesteps=n_ts,
         n_locs=1,
         area=reef_config.area,
@@ -116,13 +116,13 @@ function run_calibration(
     )
 
     total_initial_pop = ceil(Int64, 4 * reef_config.area)
-    CoralFlow.initialize_coral_population!(
+    Kora.initialize_coral_population!(
         reef_state, 1, total_initial_pop;
         group_proportions=reef_config.initial_proportions
     )
 
     # Prepare environmental conditions
-    env_conditions = CoralFlow.generate_example_environment(n_ts, 1; with_dhw=false)
+    env_conditions = Kora.generate_example_environment(n_ts, 1; with_dhw=false)
     env_conditions[:, 1, 1] .= historic_dhw
 
     # Match simulation dates with observations
@@ -257,17 +257,17 @@ function run_calibration(
 
     # Run model with best parameters
     @info "Running model with best parameters..."
-    CoralFlow.set_population!(reef_state, optim_best)
+    Kora.set_population!(reef_state, optim_best)
 
     rng = Random.seed!(opt_config.random_seed)
     if calib_settings.use_scalers && length(optim_best) > 16
-        n_grps = CoralFlow.n_groups(reef_state)
+        n_grps = Kora.n_groups(reef_state)
 
         # Extract and apply scalers
         scaler_start = 17
         scaler_end = 17 + n_grps - 1
         loc_scalers = optim_best[scaler_start:scaler_end]
-        CoralFlow.assign_scalers!(reef_state, loc_scalers)
+        Kora.assign_scalers!(reef_state, loc_scalers)
 
         # Extract recruitment parameters
         recruitment_proportion = optim_best[scaler_end + 1]
@@ -283,18 +283,18 @@ function run_calibration(
             end
         end
 
-        CoralFlow.run_example!(
+        Kora.run_example!(
             reef_state, env_conditions;
             recruits=Float32(recruitment_proportion),
             self_seed=Float32(self_seeding_proportion),
             rng=rng
         )
     else
-        CoralFlow.run_example!(reef_state, env_conditions; rng=rng)
+        Kora.run_example!(reef_state, env_conditions; rng=rng)
     end
 
     # Calculate performance metrics for entire time series
-    cover = (CoralFlow.coral_cover(reef_state) ./ reef_config.area) * 100.0
+    cover = (Kora.coral_cover(reef_state) ./ reef_config.area) * 100.0
     sim = cover[c_sim_indices]
     obs = reef_obs.MEAN_LIVE_CORAL[c_ref_indices]
 
@@ -322,7 +322,7 @@ function run_calibration(
     mkpath(file_paths.figure_dir)
 
     # Main timeseries
-    f_ts = CoralFlow.viz.timeseries(reef_state, env_conditions)
+    f_ts = Kora.viz.timeseries(reef_state, env_conditions)
     save(
         joinpath(file_paths.figure_dir, "$(reef_config.reef_id)_calibrated_timeseries.png"),
         f_ts;
@@ -334,10 +334,10 @@ function run_calibration(
     if !isempty(tracked_candidates)
         @info "Running ensemble with $(length(tracked_candidates)) candidates..."
         suitable_params = hcat(tracked_candidates...)
-        ensemble_res = CoralFlow.run_ensemble!(reef_state, env_conditions, suitable_params)
+        ensemble_res = Kora.run_ensemble!(reef_state, env_conditions, suitable_params)
 
         # Ensemble timeseries
-        f_ensemble = CoralFlow.viz.ensemble_timeseries(
+        f_ensemble = Kora.viz.ensemble_timeseries(
             reef_state, ensemble_res, env_conditions
         )
         save(

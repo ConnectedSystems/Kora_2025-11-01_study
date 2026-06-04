@@ -12,7 +12,7 @@ reef_target = [nothing, "moore"]
 stats_of_interest = [:mean, :std]
 for reg_scale in region_scale
     for rt in reef_target
-        model_results = CoralFlow.process_ecorrap_models(
+        model_results = Kora.process_ecorrap_models(
             joinpath(DATA_DIR, "ecorrap_expanded.parquet"),
             joinpath(OUTPUT_DIR, "ecorrap_to_cscape_species.csv");
             region=reg_scale,
@@ -103,8 +103,8 @@ for reg_scale in region_scale
         for taxa in keys(model_results.growth_groupings)
             @info "Assessing $(taxa)"
 
-            g_id = first(findall(CoralFlow.TARGET_GROUPS .== taxa))
-            group_title = CoralFlow.GROUP_NAMES[g_id]
+            g_id = first(findall(Kora.TARGET_GROUPS .== taxa))
+            group_title = Kora.GROUP_NAMES[g_id]
 
             X_growth = copy(model_results.growth_groupings[taxa])
             y_size = Float64.(model_results.growth_groupings[taxa].est_1yo_growth)

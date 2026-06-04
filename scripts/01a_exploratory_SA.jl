@@ -29,7 +29,7 @@ function binned_sa(
 )
     n_obs = nrow(data)
     per_bin_sample = n_obs ÷ n_bins
-    bin_ids = CoralFlow.adaptive_min_sample_binning(diameters, per_bin_sample)
+    bin_ids = Kora.adaptive_min_sample_binning(diameters, per_bin_sample)
 
     n_bins_actual = length(unique(bin_ids))
     g_bin = Matrix{Float64}(undef, n_bins_actual, ncol(data))
@@ -150,7 +150,7 @@ function process_region_sensitivity(
     @info "Processing region: $region"
 
     # Fit models
-    model_results = CoralFlow.process_ecorrap_models(
+    model_results = Kora.process_ecorrap_models(
         ecorrap_file,
         species_file;
         region=region,

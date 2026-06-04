@@ -13,7 +13,7 @@ for reef in reefs
     end
     mkpath(joinpath(FIG_DIR, "regressions", region, tgt_dir))
 
-    growth_results = CoralFlow.process_growth_models(
+    growth_results = Kora.process_growth_models(
         joinpath(OUTPUT_DIR, "ecorrap_expanded.parquet"),
         joinpath(OUTPUT_DIR, "ecorrap_to_cscape_species.csv");
         region=region,
@@ -23,7 +23,7 @@ for reef in reefs
         n_bins=10
     )
 
-    survival_results = CoralFlow.process_survival_models(
+    survival_results = Kora.process_survival_models(
         joinpath(OUTPUT_DIR, "ecorrap_expanded.parquet"),
         joinpath(OUTPUT_DIR, "ecorrap_to_cscape_species.csv");
         region=region,
@@ -36,13 +36,13 @@ for reef in reefs
     push!(region_growth, growth_results)
     push!(region_survival, survival_results)
 
-    CoralFlow.viz.survival_performance_plots(
+    Kora.viz.survival_performance_plots(
         survival_results.survival_groupings,
         survival_results.survival_fits;
         save_path=joinpath(FIG_DIR, "regressions", region, tgt_dir)
     )
 
-    CoralFlow.viz.growth_performance_plots(
+    Kora.viz.growth_performance_plots(
         growth_results.growth_groupings,
         growth_results.growth_fits;
         save_path=joinpath(FIG_DIR, "regressions", region, tgt_dir)
