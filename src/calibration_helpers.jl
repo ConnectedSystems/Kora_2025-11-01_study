@@ -1,4 +1,4 @@
-import CoralFlow: ReefState
+import Kora: ReefState
 import DataStructures: CircularBuffer, capacity
 
 using LaTeXStrings

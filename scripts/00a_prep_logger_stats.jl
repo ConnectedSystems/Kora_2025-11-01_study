@@ -2,7 +2,7 @@
 Process all EcoRRAP oceanographic raw data files into period-level summary statistics
 per site and depth category.
 
-Output: data/ecorrap_oceanographic/ocn_annual_stats.parquet
+Output: data/ecorrap_logger/ocn_annual_stats.parquet
 
 Each row represents one (site_code, depth_category, period_year) combination.
 Statistics are computed as both mean and median over the chosen temporal window.
@@ -21,7 +21,7 @@ using Parquet2
 using Statistics
 using Dates
 
-const OCN_DIR = joinpath(@__DIR__, "..", "data", "ecorrap_oceanographic")
+const OCN_DIR = joinpath(@__DIR__, "..", "data", "ecorrap_logger")
 const OUTPUT_FILE = joinpath(OCN_DIR, "ocn_annual_stats.parquet")
 const WINDOW_TYPE = :survey_year
 

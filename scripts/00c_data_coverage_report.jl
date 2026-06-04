@@ -16,6 +16,8 @@ const DATA_DIR = joinpath(@__DIR__, "..", "data")
 const INPUT_FILE = joinpath(DATA_DIR, "ecorrap_expanded.parquet")
 const REPORT_FILE = joinpath(DATA_DIR, "coverage_report.md")
 
+
+
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 is_absent(v) = ismissing(v) || (v isa AbstractFloat && isnan(v))
@@ -147,6 +149,169 @@ Affected combinations (pre-fix):
 | par      | OSKE      | S         | 2022        |
 | par      | TSMA      | D         | 2022        |
 """)
+
+# ─── Subsets for study variable summary (expanded parquet only) ──────────────
+
+on_df = df[coalesce.(df.cluster .== "offshore_north", false), :]
+ts_df = df[coalesce.(df.cluster .== "torres_strait",  false), :]
+
+on_g = on_df[coalesce.(on_df.growth_use   .== "yes", false), :]
+on_s = on_df[coalesce.(on_df.survival_use .== "yes", false), :]
+ts_g = ts_df[coalesce.(ts_df.growth_use   .== "yes", false), :]
+ts_s = ts_df[coalesce.(ts_df.survival_use .== "yes", false), :]
+
+# ─── Study variable summary table ────────────────────────────────────────────
+
+# Helpers
+_vals(d, c)  = collect(skipmissing(d[!, c]))
+_uvals(d, c) = sort(unique(skipmissing(d[!, c])))
+_nu(d, c)    = length(_uvals(d, c))
+
+function _fmt_cr(vals::Vector)   # count / [range]
+    isempty(vals) && return "N/A"
+    lo = round(minimum(vals); digits=2)
+    hi = round(maximum(vals); digits=2)
+    return "$(length(vals)) / [$(lo) – $(hi)]"
+end
+
+function _site_stat(df, site_col::Symbol, val_col::Symbol)
+    rows = unique(dropmissing(df[:, [site_col, val_col]]))
+    vals = collect(skipmissing(rows[!, val_col]))
+    return _fmt_cr(vals)
+end
+
+println(io, "---")
+println(io, "")
+println(io, "## Study variable summary")
+println(io, "")
+println(io, """
+Counts and value ranges for key variables in the Offshore North and Torres Strait
+regional analysis datasets.  Diameter counts are filtered to `growth_use = "yes"` /
+`survival_use = "yes"`.  All values are sourced from `ecorrap_expanded.parquet`.
+Continuous depth for Torres Strait uses `depth_min_mean` from the EcoRRAP in-situ
+logger deployment at Masig Reef; only Masig has logger coverage in the current
+study scope.
+""")
+
+println(io, "| Identifier | Description | Offshore North<br>Count / [Range] | Torres Strait<br>Count / [Range] |")
+println(io, "|------------|-------------|-----------------------------------|----------------------------------|")
+
+# diam / diam_mort  (diam = area_to_diam(area_t1), diam_mort = area_to_diam(area_t2) for survival)
+on_g_diam = _vals(on_g, :diam)
+on_s_diam = _vals(on_s, :diamnext)
+ts_g_diam = _vals(ts_g, :diam)
+ts_s_diam = _vals(ts_s, :diamnext)
+on_diam_cell = "Growth: $(_fmt_cr(on_g_diam))<br>Survival: $(_fmt_cr(on_s_diam))"
+ts_diam_cell = "Growth: $(_fmt_cr(ts_g_diam))<br>Survival: $(_fmt_cr(ts_s_diam))"
+println(io, "| `diam` / `diam_mort` | Estimated coral diameter at observation (cm): `diam` for growth obs., `diam_mort` for mortality obs. | $(on_diam_cell) | $(ts_diam_cell) |")
+
+# plot / quadrat  (unique plot values per cluster)
+on_plot_n = _nu(on_g, :plot)
+ts_quad_n = _nu(ts_g, :quadrat_number)
+println(io, "| `plot` / `quadrat` | Specific monitored plot (ON) or quadrat (TS) | $(on_plot_n) | $(ts_quad_n) |")
+
+# depth — depth_cat (S/D) is available for both; continuous depth_min_mean from logger for TS only
+on_depth_str = join(sort(unique(skipmissing(on_g.depth_cat))), ", ")
+ts_depth_str = _site_stat(
+    unique(dropmissing(ts_df[:, [:site_code, :depth_cat, :depth_min_mean]])),
+    :site_code, :depth_min_mean
+)
+println(io, "| `depth` | Depth category (S/D) for ON; continuous logger mean (m) for TS (Masig only) | $(on_depth_str) | $(ts_depth_str) |")
+
+# temperature — EcoRRAP in-situ logger data for both regions
+# ON: temp_max_mean (mean of daily maxima); TS: temp_mean_mean (mean of daily means)
+on_temp_str = _site_stat(
+    unique(dropmissing(on_df[:, [:site_code, :depth_cat, :temp_max_mean]])),
+    :site_code, :temp_max_mean
+)
+ts_temp_str = _site_stat(
+    unique(dropmissing(ts_df[:, [:site_code, :depth_cat, :temp_mean_mean]])),
+    :site_code, :temp_mean_mean
+)
+println(io, "| `temp` | Mean of daily temperature (°C) from EcoRRAP in-situ loggers; daily-max mean for ON, daily mean for TS | $(on_temp_str) | $(ts_temp_str) |")
+
+# habitat
+on_hab = _uvals(on_g, :habitat_area)
+ts_hab = _uvals(ts_g, :habitat_area)
+on_hab_str = "$(length(on_hab)) ($(join(on_hab, "; ")))"
+ts_hab_str = "$(length(ts_hab)) ($(join(ts_hab, "; ")))"
+println(io, "| `habitat` | Reef habitat zone code (`habitat_area`) | $(on_hab_str) | $(ts_hab_str) |")
+
+# long / lat (site-level; from benthic CSV metadata via 00b)
+on_lon_str = _site_stat(unique(dropmissing(on_df[:, [:site_code, :lon]])), :site_code, :lon)
+on_lat_str = _site_stat(unique(dropmissing(on_df[:, [:site_code, :lat]])), :site_code, :lat)
+ts_lon_str = _site_stat(unique(dropmissing(ts_df[:, [:site_code, :lon]])), :site_code, :lon)
+ts_lat_str = _site_stat(unique(dropmissing(ts_df[:, [:site_code, :lat]])), :site_code, :lat)
+println(io, "| `lon` | Longitude (decimal degrees) | $(on_lon_str) | $(ts_lon_str) |")
+println(io, "| `lat` | Latitude (decimal degrees) | $(on_lat_str) | $(ts_lat_str) |")
+
+# site (reef-level code in expanded parquet)
+on_site_n = _nu(on_g, :site_code)
+ts_site_n = _nu(ts_g, :site_code)
+println(io, "| `site` | Reef-level site code | $(on_site_n) | $(ts_site_n) |")
+
+# reef
+on_reef = _uvals(on_g, :reef)
+ts_reef = _uvals(ts_g, :reef)
+on_reef_str = "$(length(on_reef)) ($(join(titlecase.(on_reef), "; ")))"
+ts_reef_str = "$(length(ts_reef)) ($(join(titlecase.(ts_reef), "; ")))"
+println(io, "| `reef` | Monitored reef | $(on_reef_str) | $(ts_reef_str) |")
+
+# taxa
+on_g_taxa = _nu(on_g, :taxon)
+on_s_taxa = _nu(on_s, :taxon)
+ts_g_taxa = _nu(ts_g, :taxon)
+ts_s_taxa = _nu(ts_s, :taxon)
+println(io, "| `taxa` | Individual taxonomic group | Growth: $(on_g_taxa)<br>Survival: $(on_s_taxa) | Growth: $(ts_g_taxa)<br>Survival: $(ts_s_taxa) |")
+
+# functional_group
+on_fg_n = _nu(on_g, :cscape_group)
+ts_fg_n = _nu(ts_g, :cscape_group)
+println(io, "| `functional_group` | Morphological grouping of taxa | $(on_fg_n) | $(ts_fg_n) |")
+
+# colony_id
+ts_g_cid = _nu(ts_g, :colony_id)
+ts_s_cid = _nu(ts_s, :colony_id)
+println(io, "| `colony_id` | Individual coral identifier | N/A | Growth: $(ts_g_cid)<br>Survival: $(ts_s_cid) |")
+println(io, "")
+
+# ─── Habitat type codes ───────────────────────────────────────────────────────
+
+habitat_zone_labels = Dict("BA" => "Back reef", "FL" => "Flank", "FR" => "Front reef", "LA" => "Lagoon")
+
+println(io, "---")
+println(io, "")
+println(io, "## Habitat type codes")
+println(io, "")
+println(io, """
+The `habitat_area` column identifies the reef zone of a survey plot or quadrat.
+Codes use a two-letter zone prefix followed by a numeric plot index
+(e.g. `BA1` = first back-reef plot, `FR2` = second front-reef plot).
+The `habitat` column in model inputs uses the zone label directly
+(`back`, `flank`, `front`, `lagoon`).
+""")
+println(io, "| Prefix | Zone | Present in |")
+println(io, "|--------|------|------------|")
+println(io, "| `BA` | Back reef | Offshore North, Torres Strait |")
+println(io, "| `FL` | Flank | Offshore North, Torres Strait |")
+println(io, "| `FR` | Front reef | Offshore North, Torres Strait |")
+println(io, "| `LA` | Lagoon | Torres Strait only |")
+println(io, "")
+
+all_hab_codes = sort(unique(skipmissing(df.habitat_area)))
+println(io, "Full `habitat_area` inventory in the expanded dataset:")
+println(io, "")
+println(io, "| Code | Zone | Plot index | Datasets present |")
+println(io, "|------|------|------------|------------------|")
+for code in all_hab_codes
+    prefix = code[1:2]
+    idx    = length(code) >= 3 ? code[3:end] : ""
+    zone   = get(habitat_zone_labels, prefix, "Unknown")
+    ds_mask = coalesce.(df.habitat_area .== code, false)
+    ds_list = sort(unique(skipmissing(df[ds_mask, :cluster])))
+    println(io, "| `$(code)` | $(zone) | $(idx) | $(join(ds_list, ", ")) |")
+end
+println(io, "")
 
 # Write to file
 write(REPORT_FILE, String(take!(io)))

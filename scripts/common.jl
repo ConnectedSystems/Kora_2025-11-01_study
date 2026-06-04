@@ -15,7 +15,7 @@ using Parquet2
 import GeoDataFrames as GDF
 
 using CairoMakie
-using CoralFlow
+using Kora
 
 OUTPUT_DIR = joinpath(@__DIR__, "..", "data")
 FIG_DIR = joinpath(@__DIR__, "..", "figs")

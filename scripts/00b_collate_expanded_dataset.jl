@@ -30,7 +30,7 @@ const JUV_FILE = joinpath(DATA_DIR, "ecorrap_juv_data_2021_2023_24062025.csv")
 const BENTHIC_FILE = joinpath(
     DATA_DIR, "ecorrap_benthic", "latest", "cover_estimate_DESCRIPTION.csv"
 )
-const OCN_STATS_FILE = joinpath(DATA_DIR, "ecorrap_oceanographic", "ocn_annual_stats.parquet")
+const OCN_STATS_FILE = joinpath(DATA_DIR, "ecorrap_logger", "ocn_annual_stats.parquet")
 const SPECIES_FILE = joinpath(DATA_DIR, "ecorrap_to_cscape_species.csv")
 const LABELSET_FILE = joinpath(
     DATA_DIR, "ecorrap_benthic",
@@ -157,6 +157,14 @@ ipm = vcat(ipm_photo, juv_raw; cols=:union)
 
 @info "Loading benthic cover data" file = basename(BENTHIC_FILE)
 benthic_raw = CSV.read(BENTHIC_FILE, DataFrame; missingstring=["", "NA", "N/A"])
+
+# Extract site-level coordinates (one row per site; take first occurrence)
+site_coords = combine(
+    groupby(benthic_raw, :site),
+    :site_latitude  => first => :lat,
+    :site_longitude => first => :lon
+)
+rename!(site_coords, :site => :site_code)
 
 @info "Loading oceanographic stats" file = basename(OCN_STATS_FILE)
 ocn = DataFrame(Parquet2.readfile(OCN_STATS_FILE))
@@ -313,6 +321,9 @@ ipm_work.ocn_site_code = Union{String,Missing}[
     for i in 1:nrow(ipm_work)
 ]
 
+# Site-level lat/lon from benthic data
+ipm_work = leftjoin(ipm_work, site_coords; on=:site_code)
+
 # Diameter (cm) from tissue area (cm²)
 ipm_work.diam = Union{Float64,Missing}[
     ismissing(a) ? missing : Kora.area_to_diam(Float64(a)) for
@@ -397,6 +408,20 @@ end
 @info "Saving aggregated benthic cover..."
 Parquet2.writefile(joinpath(DATA_DIR, "benthic_site.parquet"), benthic_site)
 
+# ─── Join benthic cover ────────────────────────────────────────────────────────
+
+@info "Joining benthic cover..."
+expanded = leftjoin(
+    ipm_work, benthic_site;
+    on=[:site_code, :habitat_area, :depth_cat, :survey_year],
+    makeunique=false
+)
+
+n_no_benthic = count(row -> ismissing(row.total_coral_cover), eachrow(expanded))
+if n_no_benthic > 0
+    @warn "Rows without matching benthic cover" n = n_no_benthic total = nrow(ipm_work)
+end
+
 # ─── Join oceanographic stats ─────────────────────────────────────────────────
 
 @info "Joining oceanographic stats..."
@@ -404,7 +429,7 @@ ocn_join = select(ocn, Not(:window_type))
 rename!(ocn_join, :site_code => :ocn_site_code, :period_year => :survey_year)
 
 expanded = leftjoin(
-    ipm_work, ocn_join;
+    expanded, ocn_join;
     on=[:ocn_site_code, :depth_cat, :survey_year],
     makeunique=false
 )
@@ -450,7 +475,9 @@ output_cols = [
     :par_dli_mean, :par_dli_median, :n_days_par,
     :depth_min_mean, :depth_min_median,
     :depth_max_mean, :depth_max_median,
-    :depth_range_mean, :depth_range_median, :n_days_depth
+    :depth_range_mean, :depth_range_median, :n_days_depth,
+    # ── Spatial coordinates (from benthic site metadata) ──────────────────────
+    :lat, :lon
 ]
 
 present = Set(propertynames(expanded))

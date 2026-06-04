@@ -132,11 +132,11 @@ inside the study `data/` directory rather than the parent `../data/` directory.
 | `data/ecorrap_benthic/latest/cover_estimate_DESCRIPTION.csv` | Photoquadrat benthic cover (%) per species and transect for all 13 sites |
 | `data/ecorrap_benthic/latest/EcoRRAP_Community_Composition_Labelset.xlsx` | Updated labelset mapping DESCRIPTION codes to functional groups; export to CSV and update `LABELSET_FILE` in `00b` if the current CSV is missing species |
 | `data/ecorrap_benthic/EcoRRAP_Labelset_mapping_Maren_Toor_2026-01-20.csv` | Older labelset mapping used by `00b` as the default; one-to-one DESCRIPTION → functional group, no ambiguous entries |
-| `data/ecorrap_oceanographic/TEMP_STATS/` | Daily temperature stats files (one per instrument deployment) |
-| `data/ecorrap_oceanographic/PSAL_STATS/` | Daily salinity stats files |
-| `data/ecorrap_oceanographic/CSPD_STATS/` | Hourly current speed files |
-| `data/ecorrap_oceanographic/WAVES_CSV/` | Sub-hourly wave height files (`W`-prefix only; `X`-prefix excluded) |
-| `data/ecorrap_oceanographic/PAR_CSV/` | Daily light integral files (`*_dli.csv` only) |
+| `data/ecorrap_logger/TEMP_STATS/` | Daily temperature stats files (one per instrument deployment) |
+| `data/ecorrap_logger/PSAL_STATS/` | Daily salinity stats files |
+| `data/ecorrap_logger/CSPD_STATS/` | Hourly current speed files |
+| `data/ecorrap_logger/WAVES_CSV/` | Sub-hourly wave height files (`W`-prefix only; `X`-prefix excluded) |
+| `data/ecorrap_logger/PAR_CSV/` | Daily light integral files (`*_dli.csv` only) |
 
 All oceanographic files share a common `# key : value` metadata header format. Site identity
 and instrument depth are read from `platform_code` and `instrument_nominal_depth` header fields.
@@ -186,7 +186,7 @@ Within each stage, `a` scripts produce data consumed by `b` scripts.
 | Script | Inputs | Key outputs | Notes |
 |---|---|---|---|
 | `scripts/00c_prep_ecorrap_data.jl` | `data/ecorrap_benthic/latest/cover_estimate_DESCRIPTION.csv`, labelset mapping | `data/ecorrap_benthic/moore_estimate.csv`, `masig_estimate.csv`, `data/Masig_Reef_EcoRRAP_estimate.csv` | Produces annual mean cover by functional group for Moore and Masig from the expanded benthic data. Original version (old data format) archived as `00a_prep_ecorrap_data_ARCHIVED.jl`. Required for Stages 1–5. |
-| `scripts/00a_prep_oceanographic_stats.jl` | `data/ecorrap_oceanographic/{TEMP,PSAL,CSPD,WAVES,PAR}_*/` | `data/ecorrap_oceanographic/ocn_annual_stats.csv` | Processes all oceanographic instrument files into period-level summary statistics (mean + median) per site, depth category, and survey year. Two-step aggregation averages across multiple instruments before computing period statistics. Default window: `survey_year` (May–April). |
+| `scripts/00a_prep_oceanographic_stats.jl` | `data/ecorrap_logger/{TEMP,PSAL,CSPD,WAVES,PAR}_*/` | `data/ecorrap_logger/ocn_annual_stats.csv` | Processes all oceanographic instrument files into period-level summary statistics (mean + median) per site, depth category, and survey year. Two-step aggregation averages across multiple instruments before computing period statistics. Default window: `survey_year` (May–April). |
 | `scripts/00b_collate_expanded_dataset.jl` | `ecorrap_adult_juv_combined_*.csv`, `cover_estimate_DESCRIPTION.csv`, `ocn_annual_stats.csv` (output of `00a`), labelset CSV, `ecorrap to cscape species.csv`, `reef_site_code_lookup.csv` | `data/ecorrap_expanded.csv` | Joins individual coral tracking data with community benthic cover (aggregated from species to functional groups via the labelset) and oceanographic statistics. One row per individual coral observation. Run `00a` first. |
 
 ### Stage 1: Exploratory sensitivity analysis of growth/survival functions
@@ -284,7 +284,7 @@ data/
 │   ├── moore_estimate.csv          # annual mean cover by functional group — Moore Reef
 │   ├── masig_estimate.csv          # annual mean cover by functional group — Masig Reef
 │   └── latest/                     # expanded benthic cover input files (all 13 sites)
-├── ecorrap_oceanographic/          # oceanographic instrument data and derived stats
+├── ecorrap_logger/                 # instrument data and derived stats
 │   ├── {TEMP,PSAL,CSPD,WAVES,PAR}_*/  # raw instrument files (input, not generated)
 │   └── ocn_annual_stats.csv        # period-level stats per site × depth × year (output of 00a)
 ├── ecorrap_expanded.csv            # unified IPM + benthic cover + oceanographic dataset (output of 00b)
