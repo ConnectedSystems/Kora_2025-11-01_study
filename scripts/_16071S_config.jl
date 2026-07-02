@@ -14,8 +14,8 @@ reef_config = ReefConfig(;
 file_paths = CalibrationDataPaths(;
     dhw_scenarios=joinpath(OUTPUT_DIR, "dhw_scens.nc"),
     canonical_reefs=joinpath(OUTPUT_DIR, "rrap_canonical_2025-07-15-T10-48-29.gpkg"),
-    growth_models=joinpath(OUTPUT_DIR, "offshore_north", "moore", "offshore_north_moore_growth_models.dat"),
-    survival_models=joinpath(OUTPUT_DIR, "offshore_north", "moore", "offshore_north_moore_survival_models.dat"),
+    growth_models=joinpath(OUTPUT_DIR, "offshore_north", "moore", "offshore_north_moore_growth_models.json"),
+    survival_models=joinpath(OUTPUT_DIR, "offshore_north", "moore", "offshore_north_moore_survival_models.json"),
     output_dir=OUTPUT_DIR,
     figure_dir=FIG_DIR
 )
