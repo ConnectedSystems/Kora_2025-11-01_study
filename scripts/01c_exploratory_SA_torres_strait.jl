@@ -13,7 +13,7 @@ stats_of_interest = [:mean, :std]
 for reg_scale in region_scale
     for rt in reef_target
         model_results = Kora.process_ecorrap_models(
-            joinpath(DATA_DIR, "ecorrap_expanded.parquet"),
+            joinpath(OUTPUT_DIR, "ecorrap_unified.parquet"),
             joinpath(OUTPUT_DIR, "ecorrap_to_cscape_species.csv");
             region=reg_scale,
             reef=rt,
@@ -73,9 +73,12 @@ for reg_scale in region_scale
         rename_for_display!(all_growth)
         rename_for_display!(all_surv)
 
-        # Hacky fudge - some years don't have temperature data
-        replace!(all_growth.temperature, NaN => -1.0)
-        replace!(all_surv.temperature, NaN => -1.0)
+        for col in names(all_growth)
+            eltype(all_growth[!, col]) <: AbstractFloat && replace!(all_growth[!, col], NaN => -1.0)
+        end
+        for col in names(all_surv)
+            eltype(all_surv[!, col]) <: AbstractFloat && replace!(all_surv[!, col], NaN => -1.0)
+        end
 
         Si_growth = pawn(all_growth, all_y_growth; S=10)
         f = plot_pawn_heatmap(Si_growth, "Growth - $(human_scale_name)")
@@ -140,9 +143,12 @@ for reg_scale in region_scale
             rename_for_display!(X_surv)
             rename_for_display!(X_growth)
 
-            # Hacky fudge - some years don't have temperature data
-            replace!(X_growth.temperature, NaN => -1.0)
-            replace!(X_surv.temperature, NaN => -1.0)
+            for col in names(X_growth)
+                eltype(X_growth[!, col]) <: AbstractFloat && replace!(X_growth[!, col], NaN => -1.0)
+            end
+            for col in names(X_surv)
+                eltype(X_surv[!, col]) <: AbstractFloat && replace!(X_surv[!, col], NaN => -1.0)
+            end
 
             Si_growth = pawn(X_growth, y_size; S=10)
             f = plot_pawn_heatmap(Si_growth, "Growth - $(human_scale_name)\n$(group_title)")
@@ -206,11 +212,14 @@ for reg_scale in region_scale
 
         # ── helper: build SA-ready feature matrix with wave optionally included ──
         function prepare_wave_features(df::DataFrame, ignore_cols_base, include_wave::Bool)
-            extra_drop = include_wave ?
-                filter(!=(Symbol("wave_hs_mean")), [:wave_hs_median, :n_days_waves]) :
-                [:wave_hs_mean, :wave_hs_median, :n_days_waves]
-            drop = [c for c in vcat(ignore_cols_base, extra_drop) if c in propertynames(df)]
-            X = select(df, Not(drop))
+            # Always drop the redundant wave columns; keep wave_hs_mean only when requested.
+            wave_always_drop = [:wave_hs_median, :n_days_waves]
+            wave_keep = include_wave ? [:wave_hs_mean] : Symbol[]
+            # Build the drop list from the base ignore list, stripping any columns we
+            # want to keep, then add the always-drop wave columns.
+            base_drop = filter(c -> c ∉ wave_keep, ignore_cols_base)
+            drop = [c for c in vcat(base_drop, wave_always_drop) if c in propertynames(df)]
+            X = select(df, Not(unique(drop)))
             cleanup_features!(X)
             rename_for_display!(X)
             return X
@@ -223,7 +232,9 @@ for reg_scale in region_scale
             # ── growth ──
             y_growth = wave_growth.est_1yo_growth
             X_growth = prepare_wave_features(wave_growth, growth_ignore_cols, include_wave)
-            replace!(X_growth.temperature, NaN => -1.0)
+            for col in names(X_growth)
+                eltype(X_growth[!, col]) <: AbstractFloat && replace!(X_growth[!, col], NaN => -1.0)
+            end
 
             Si_g = pawn(X_growth, y_growth; S=10)
             f = plot_pawn_heatmap(
@@ -236,7 +247,9 @@ for reg_scale in region_scale
             y_surv_raw = wave_surv.surv
             y_surv = Int64.(coalesce.(y_surv_raw, 0))
             X_surv = prepare_wave_features(wave_surv, surv_ignore_cols, include_wave)
-            replace!(X_surv.temperature, NaN => -1.0)
+            for col in names(X_surv)
+                eltype(X_surv[!, col]) <: AbstractFloat && replace!(X_surv[!, col], NaN => -1.0)
+            end
 
             Si_s = pawn(X_surv, convert.(Float64, y_surv); S=10)
             f = plot_pawn_heatmap(

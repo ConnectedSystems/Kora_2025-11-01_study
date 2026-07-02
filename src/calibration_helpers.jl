@@ -747,20 +747,27 @@ function plot_calibration_results(
     output_file::String;
     v_sim_indices=nothing,
     v_ref_indices=nothing,
-    ensemble_res=nothing
+    ensemble_res=nothing,
+    best_member_idx=nothing
 )
     f = Figure(; size=(1400, 1000))  # Increased height for new subplot
 
     n_grps = n_groups(reef_state)
     n_ts = n_timesteps(reef_state)
 
-    # Calculate group cover for best fit
-    group_cover_best = zeros(Float32, n_ts, n_grps)
-    for ts in 1:n_ts, grp in 1:n_grps
-        pop = coral_population(reef_state, ts, 1, grp)  # loc=1
-        group_cover_best[ts, grp] = sum(cover_cm_to_m2.(pop))
+    # Group cover for the best single member.
+    # Prefer ensemble data when available (best_member_idx set); fall back to
+    # reef_state (which may reflect an arbitrary run) otherwise.
+    group_cover_best = if !isnothing(ensemble_res) && !isnothing(best_member_idx)
+        (ensemble_res.group_cover[:, 1, :, best_member_idx] ./ area) .* 100.0
+    else
+        tmp = zeros(Float32, n_ts, n_grps)
+        for ts in 1:n_ts, grp in 1:n_grps
+            pop = coral_population(reef_state, ts, 1, grp)
+            tmp[ts, grp] = sum(cover_cm_to_m2.(pop))
+        end
+        (tmp / area) * 100.0
     end
-    group_cover_best = (group_cover_best / area) * 100.0
 
     # Very messy, to be cleaned up later.
     ecorrap_overlap_idx = indexin(ecorrap_obs.year, year.(sim_year_range))
@@ -833,12 +840,12 @@ function plot_calibration_results(
         bf_val_str = isnothing(v_bf_val_rmse) ? "" : " | Val RMSE: $(v_bf_val_rmse)"
         ens_val_str = isnothing(v_ens_val_rmse) ? "" : " | Val RMSE: $(v_ens_val_rmse)"
         metrics_annotation = L"""
-            Best Fit - Cal RMSE: %$(c_bf_rmse)%$(bf_val_str) | $r_{\mathrm{log}}$: %$(v_bf_pearson)\\
-            Ensemble - Cal RMSE: %$(c_rmse)%$(ens_val_str) | $r_{\mathrm{log}}$: %$(mean_r_log)
+            Best Single Member - Cal RMSE: %$(c_bf_rmse)%$(bf_val_str) | $r_{\mathrm{log}}$: %$(v_bf_pearson)\\
+            Ensemble Mean - Cal RMSE: %$(c_rmse)%$(ens_val_str) | $r_{\mathrm{log}}$: %$(mean_r_log)
             """
     else
         bf_val_str = isnothing(v_bf_val_rmse) ? "" : " | Val RMSE: $(v_bf_val_rmse)"
-        metrics_annotation = "Best Fit - Cal RMSE: $(c_bf_rmse)$(bf_val_str) | r_log: $(v_bf_pearson)"
+        metrics_annotation = "Best Single Member - Cal RMSE: $(c_bf_rmse)$(bf_val_str) | r_log: $(v_bf_pearson)"
     end
 
     # Timeseries panel (total cover)
@@ -917,8 +924,8 @@ function plot_calibration_results(
             ax1,
             sim_timeframe,
             ensemble_mean;
-            color=(:green, 0.8),
-            linewidth=3
+            color=(:green, 0.9),
+            linewidth=4
         )
         push!(legend_elements, p_ens_mean)
         push!(legend_labels, "Ensemble Mean")
@@ -956,14 +963,14 @@ function plot_calibration_results(
         markersize=8
     )
 
-    # Best fit simulated trajectory
+    # Best single member trajectory
     p_best = scatterlines!(
         ax1, sim_timeframe, cover;
         linewidth=2,
-        color=:blue
+        color=(:blue, 0.4)
     )
     push!(legend_elements, p_best)
-    push!(legend_labels, "Best Fit")
+    push!(legend_labels, "Best Single Member")
 
     p_matched = scatter!(
         ax1, sim_timeframe[c_sim_indices], cover[c_sim_indices];

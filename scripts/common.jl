@@ -25,7 +25,7 @@ DPI = 300 / 96  # desired unit / pixels per inch
 # Unnecessary/correlated factors to remove
 surv_ignore_cols = [
     :class_train, :class_test, :class_train_mean, :class_test_mean, :surv_logclass,
-    :logdiam, Symbol("days_t1.t2"), :cluster, :bleaching_scores, :cscape_group,
+    :logdiam, Symbol("days_t1.t2"), :cluster, :bleaching_scores, :cscape_group, :Cscape_group,
     :surv, :diam, :diamnext, :survival_use, :growth_use, :class_test_std,
     :class_train_std, :depth_category, :dataset, :water_clarity,
     :site_new, :transition, :plot, :size, :sizenext,
@@ -33,6 +33,8 @@ surv_ignore_cols = [
     :clarified_note_2021, :clarified_note_2022, :clarified_note_2023,
     :date_2021, :date_2022, :date_2023,
     :coral_cover_2021, :coral_cover_2022, :coral_cover_2023,
+    :acro_table_cover, :acro_corym_cover, :corym_non_acro_cover,
+    :small_massive_cover, :large_massive_cover, :total_coral_cover,
     :est_1yo_growth, :growth_rate,
     :n_days_temp, :date_t1, :date_t2, :psal_mean_mean, :psal_mean_median,
     :n_days_psal, :cspd_mean_mean, :cspd_mean_median, :n_days_cspd, :wave_hs_mean,
@@ -43,7 +45,7 @@ surv_ignore_cols = [
 
 growth_ignore_cols = [
     :class_train, :class_test, :class_train_mean, :class_test_mean, :surv_logclass,
-    :logdiam, Symbol("days_t1.t2"), :cluster, :bleaching_scores, :cscape_group,
+    :logdiam, Symbol("days_t1.t2"), :cluster, :bleaching_scores, :cscape_group, :Cscape_group,
     :surv, :diamnext, :survival_use, :growth_use, :class_test_std,
     :class_train_std, :depth_category, :dataset, :water_clarity,
     :site_new, :transition, :plot, :logdiam, :growth, :lin_ext, :size, :sizenext,
@@ -51,6 +53,8 @@ growth_ignore_cols = [
     :clarified_note_2021, :clarified_note_2022, :clarified_note_2023,
     :date_2021, :date_2022, :date_2023,
     :coral_cover_2021, :coral_cover_2022, :coral_cover_2023,
+    :acro_table_cover, :acro_corym_cover, :corym_non_acro_cover,
+    :small_massive_cover, :large_massive_cover, :total_coral_cover,
     :est_1yo_growth, :growth_rate,
     :n_days_temp, :date_t1, :date_t2, :psal_mean_mean, :psal_mean_median,
     :n_days_psal, :cspd_mean_mean, :cspd_mean_median, :n_days_cspd, :wave_hs_mean,

@@ -166,9 +166,15 @@ function process_region_sensitivity(
     @info "Preparing survival data..."
     all_surv, all_y_surv, surv_diams = prepare_survival_data(model_results)
 
-    # Hacky fudge - some years don't have temperature data
-    replace!(all_growth.temperature, NaN => -1.0)
-    replace!(all_surv.temperature, NaN => -1.0)
+    # Replace any remaining NaNs across all float columns with a sentinel value.
+    # NaNs arise from cleanup_features! (missing → NaN) for sparsely covered columns;
+    # pawn's quantile step cannot handle them.
+    for col in names(all_growth)
+        eltype(all_growth[!, col]) <: AbstractFloat && replace!(all_growth[!, col], NaN => -1.0)
+    end
+    for col in names(all_surv)
+        eltype(all_surv[!, col]) <: AbstractFloat && replace!(all_surv[!, col], NaN => -1.0)
+    end
 
     # Perform sensitivity analyses
     @info "Analyzing growth sensitivity..."
@@ -211,8 +217,8 @@ end
 # Main analysis
 # Each region uses its own EcoRRAP data file
 region_data = [
-    ("offshore_north", joinpath(OUTPUT_DIR, "ecorrap_expanded.parquet")),
-    ("torres_strait", joinpath(OUTPUT_DIR, "ecorrap_expanded.parquet"))
+    ("offshore_north", joinpath(OUTPUT_DIR, "ecorrap_unified.parquet")),
+    ("torres_strait", joinpath(OUTPUT_DIR, "ecorrap_unified.parquet"))
 ]
 species_file = joinpath(OUTPUT_DIR, "ecorrap_to_cscape_species.csv")
 

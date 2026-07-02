@@ -293,19 +293,8 @@ function run_calibration(
         Kora.run_example!(reef_state, env_conditions; rng=rng)
     end
 
-    # Calculate performance metrics for entire time series
+    # Provisional cover — replaced below with best ensemble member once available.
     cover = (Kora.coral_cover(reef_state) ./ reef_config.area) * 100.0
-    sim = cover[c_sim_indices]
-    obs = reef_obs.MEAN_LIVE_CORAL[c_ref_indices]
-
-    metrics = calculate_performance_metrics(sim, obs)
-
-    @info "Performance Metrics:"
-    @info "  RMSE: $(round(metrics.rmse; digits=2))%"
-    @info "  Pearson: $(round(metrics.pearson; digits=3))"
-    @info "  Kendall: $(round(metrics.kendall; digits=3))"
-    @info "  Bias (β): $(round(metrics.bias; digits=3))"
-    @info "  Variability (α): $(round(metrics.variability; digits=3))"
 
     # Find validation points
     v_sim_indices, v_ref_indices, _ = find_closest_dates(
@@ -351,6 +340,31 @@ function run_calibration(
         @info "No ensemble candidates found!"
     end
 
+    # Select the best-performing ensemble member by calibration RMSE.
+    # Using a member drawn from the ensemble (rather than a fresh optim_best run)
+    # ensures both the ensemble mean and the single-member baseline share the same
+    # stochastic budget, making the comparison fair.
+    best_member_idx = nothing
+    obs_calib = reef_obs.MEAN_LIVE_CORAL[c_ref_indices]
+    if !isnothing(ensemble_res)
+        ens_cover_pct = (ensemble_res.cover[:, 1, :] ./ reef_config.area) .* 100.0
+        member_rmse = [Kora.RMSE(ens_cover_pct[c_sim_indices, i], obs_calib)
+                       for i in axes(ens_cover_pct, 2)]
+        best_member_idx = argmin(member_rmse)
+        cover = Vector{Float64}(ens_cover_pct[:, best_member_idx])
+    end
+
+    sim = cover[c_sim_indices]
+    metrics = calculate_performance_metrics(sim, obs_calib)
+
+    label = isnothing(best_member_idx) ? "optim_best single run" : "best ensemble member (RMSE-selected)"
+    @info "Performance Metrics ($label):"
+    @info "  RMSE: $(round(metrics.rmse; digits=2))%"
+    @info "  Pearson: $(round(metrics.pearson; digits=3))"
+    @info "  Kendall: $(round(metrics.kendall; digits=3))"
+    @info "  Bias (β): $(round(metrics.bias; digits=3))"
+    @info "  Variability (α): $(round(metrics.variability; digits=3))"
+
     # Calibration comparison plot (with ensemble if available)
     f_calib = plot_calibration_results(
         reef_state, env_conditions, reef_obs, c_sim_indices, c_ref_indices,
@@ -360,7 +374,8 @@ function run_calibration(
         );
         v_sim_indices=v_sim_idx,
         v_ref_indices=v_ref_idx,
-        ensemble_res=ensemble_res
+        ensemble_res=ensemble_res,
+        best_member_idx=best_member_idx
     )
 
     @info "Calibration complete!"

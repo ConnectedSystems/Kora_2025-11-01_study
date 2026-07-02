@@ -126,8 +126,8 @@ end
     historic_dhw = historic_dhw[historic_dhw.year .∈ Ref(sim_start_year:sim_end_year), "dhw"]
 
     @info "Loading growth and survival models..."
-    calib_growth_models = deserialize(file_paths.growth_models)
-    calib_survival_models = deserialize(file_paths.survival_models)
+    calib_growth_models = Kora.load_models(file_paths.growth_models)
+    calib_survival_models = Kora.load_models(file_paths.survival_models)
 
     @info "Initializing reef state..."
     n_ts = length(historic_dhw)
@@ -287,21 +287,19 @@ end
         @info "Best fitness across all trials: $(minimum(best_fitness.(opt_results)))"
     end
 
+    # Run model once with best parameters — captures reef_state for the supplementary
+    # timeseries figure and provides a fallback cover vector if no ensemble is run.
     @info "Running model with best parameters..."
     Kora.set_population!(reef_state, optim_best)
-
     rng = Random.seed!(opt_config.random_seed)
     if calib_settings.use_scalers && length(optim_best) > 16
         n_grps = Kora.n_groups(reef_state)
-
         scaler_start = 17
         scaler_end = 17 + n_grps - 1
         loc_scalers = optim_best[scaler_start:scaler_end]
         Kora.assign_scalers!(reef_state, loc_scalers)
-
         recruitment_proportion = optim_best[scaler_end + 1]
         self_seeding_proportion = optim_best[scaler_end + 2]
-
         Kora.run_model!(
             reef_state, env_conditions;
             recruits=Float32(recruitment_proportion),
@@ -311,19 +309,8 @@ end
     else
         Kora.run_model!(reef_state, env_conditions; rng=rng)
     end
-
+    # Provisional cover — replaced below with best ensemble member once available.
     cover = (Kora.coral_cover(reef_state) ./ reef_config.area) * 100.0
-    sim = cover[c_sim_indices]
-    obs = reef_obs.MEAN_LIVE_CORAL[c_ref_indices]
-
-    calib_metrics = calculate_performance_metrics(sim, obs)
-
-    @info "Performance Metrics:"
-    @info "  RMSE: $(round(calib_metrics.rmse; digits=2))%"
-    @info "  Pearson: $(round(calib_metrics.pearson; digits=3))"
-    @info "  Kendall: $(round(calib_metrics.kendall; digits=3))"
-    @info "  Bias (β): $(round(calib_metrics.bias; digits=3))"
-    @info "  Variability (α): $(round(calib_metrics.variability; digits=3))"
 
     v_sim_indices, v_ref_indices, _ = find_closest_dates(
         collect(Date.(sim_year_range)),
@@ -363,6 +350,31 @@ end
         @info "No ensemble candidates found!"
     end
 
+    # Select the best-performing ensemble member by calibration RMSE.
+    # Using a member drawn from the ensemble (rather than a fresh optim_best run)
+    # ensures both the ensemble mean and the single-member baseline share the same
+    # stochastic budget, making the comparison fair.
+    best_member_idx = nothing
+    obs_calib = reef_obs.MEAN_LIVE_CORAL[c_ref_indices]
+    if !isnothing(ensemble_res)
+        ens_cover_pct = (ensemble_res.cover[:, 1, :] ./ reef_config.area) .* 100.0
+        member_rmse = [Kora.RMSE(ens_cover_pct[c_sim_indices, i], obs_calib)
+                       for i in axes(ens_cover_pct, 2)]
+        best_member_idx = argmin(member_rmse)
+        cover = Vector{Float64}(ens_cover_pct[:, best_member_idx])
+    end
+
+    sim = cover[c_sim_indices]
+    calib_metrics = calculate_performance_metrics(sim, obs_calib)
+
+    label = isnothing(best_member_idx) ? "optim_best single run" : "best ensemble member (RMSE-selected)"
+    @info "Performance Metrics ($label):"
+    @info "  RMSE: $(round(calib_metrics.rmse; digits=2))%"
+    @info "  Pearson: $(round(calib_metrics.pearson; digits=3))"
+    @info "  Kendall: $(round(calib_metrics.kendall; digits=3))"
+    @info "  Bias (β): $(round(calib_metrics.bias; digits=3))"
+    @info "  Variability (α): $(round(calib_metrics.variability; digits=3))"
+
     plot_calibration_results(
         reef_state, env_conditions, reef_obs, c_sim_indices, c_ref_indices,
         sim_year_range, cover, reef_config.area, benthic_estimate,
@@ -371,7 +383,8 @@ end
         );
         v_sim_indices=v_sim_idx,
         v_ref_indices=v_ref_idx,
-        ensemble_res=ensemble_res
+        ensemble_res=ensemble_res,
+        best_member_idx=best_member_idx
     )
 
     @info "Calibration complete!"

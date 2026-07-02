@@ -13,7 +13,7 @@ stats_of_interest = [:mean, :std]
 for reg_scale in region_scale
     for rt in reef_target
         model_results = Kora.process_ecorrap_models(
-            joinpath(DATA_DIR, "ecorrap_expanded.parquet"),
+            joinpath(OUTPUT_DIR, "ecorrap_unified.parquet"),
             joinpath(OUTPUT_DIR, "ecorrap_to_cscape_species.csv");
             region=reg_scale,
             reef=rt,
@@ -73,9 +73,12 @@ for reg_scale in region_scale
         rename_for_display!(all_growth)
         rename_for_display!(all_surv)
 
-        # Hacky fudge - some years don't have temperature data
-        replace!(all_growth.temperature, NaN => -1.0)
-        replace!(all_surv.temperature, NaN => -1.0)
+        for col in names(all_growth)
+            eltype(all_growth[!, col]) <: AbstractFloat && replace!(all_growth[!, col], NaN => -1.0)
+        end
+        for col in names(all_surv)
+            eltype(all_surv[!, col]) <: AbstractFloat && replace!(all_surv[!, col], NaN => -1.0)
+        end
 
         Si_growth = pawn(all_growth, all_y_growth; S=10)
         f = plot_pawn_heatmap(Si_growth, "Growth - $(human_scale_name)")
@@ -140,9 +143,12 @@ for reg_scale in region_scale
             rename_for_display!(X_surv)
             rename_for_display!(X_growth)
 
-            # Hacky fudge - some years don't have temperature data
-            replace!(X_growth.temperature, NaN => -1.0)
-            replace!(X_surv.temperature, NaN => -1.0)
+            for col in names(X_growth)
+                eltype(X_growth[!, col]) <: AbstractFloat && replace!(X_growth[!, col], NaN => -1.0)
+            end
+            for col in names(X_surv)
+                eltype(X_surv[!, col]) <: AbstractFloat && replace!(X_surv[!, col], NaN => -1.0)
+            end
 
             Si_growth = pawn(X_growth, y_size; S=10)
             f = plot_pawn_heatmap(Si_growth, "Growth - $(human_scale_name)\n$(group_title)")

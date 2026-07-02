@@ -30,15 +30,11 @@ functions, fits reef-specific regression models to the field data, calibrates an
 plausible initial reef states against historical observations, and finally performs sensitivity
 analysis to identify which parameters most influence model behaviour.
 
-### Expanded dataset (all sites)
+### Unified dataset (all sites)
 
-Scripts `00a_prep_oceanographic_stats.jl` and `00b_collate_expanded_dataset.jl` prepare a
-unified expanded dataset covering all 13 EcoRRAP monitoring sites across 6 clusters (Inshore
-Central, Inshore South, Offshore Central, Offshore North, Offshore South, Torres Strait). This
-dataset joins individual coral tracking data (IPM) with community benthic cover by functional
-group and period-level oceanographic statistics (temperature, salinity, current speed, wave
-height, PAR). It is intended to support future region-wide sensitivity analysis and model
-generalisation work, and does not replace the two-reef workflow used in Stages 1–5.
+The all-sites collation workflow has been moved to a separate project
+(`EcoRRAP-data-collator`). It produces `ecorrap_unified.parquet`, which is consumed by the
+Stage 1–2 scripts in this repository.
 
 ---
 
@@ -121,17 +117,17 @@ Manta Tow data were sourced directly from the
 [AIMS Reef Monitoring Dashboard](https://apps.aims.gov.au/reef-monitoring/reefs) for the
 reefs of interest.
 
-#### Expanded dataset — additional restricted files
+#### Unified dataset — additional restricted files
 
-The following additional files are required only for the expanded all-sites pipeline
-(`00a_prep_oceanographic_stats.jl` and `00b_collate_expanded_dataset.jl`). They are placed
-inside the study `data/` directory rather than the parent `../data/` directory.
+The following additional files are required for the all-sites collation workflow in
+`EcoRRAP-data-collator`. They are placed inside the study `data/` directory rather than the
+parent `../data/` directory.
 
 | Path (relative to study root) | Contents |
 |---|---|
 | `data/ecorrap_benthic/latest/cover_estimate_DESCRIPTION.csv` | Photoquadrat benthic cover (%) per species and transect for all 13 sites |
-| `data/ecorrap_benthic/latest/EcoRRAP_Community_Composition_Labelset.xlsx` | Updated labelset mapping DESCRIPTION codes to functional groups; export to CSV and update `LABELSET_FILE` in `00b` if the current CSV is missing species |
-| `data/ecorrap_benthic/EcoRRAP_Labelset_mapping_Maren_Toor_2026-01-20.csv` | Older labelset mapping used by `00b` as the default; one-to-one DESCRIPTION → functional group, no ambiguous entries |
+| `data/ecorrap_benthic/latest/EcoRRAP_Community_Composition_Labelset.xlsx` | Updated labelset mapping DESCRIPTION codes to functional groups; export to CSV and update the collator config if the current CSV is missing species |
+| `data/ecorrap_benthic/EcoRRAP_Labelset_mapping_Maren_Toor_2026-01-20.csv` | Older labelset mapping used by the collator as the default; one-to-one DESCRIPTION → functional group, no ambiguous entries |
 | `data/ecorrap_logger/TEMP_STATS/` | Daily temperature stats files (one per instrument deployment) |
 | `data/ecorrap_logger/PSAL_STATS/` | Daily salinity stats files |
 | `data/ecorrap_logger/CSPD_STATS/` | Hourly current speed files |
@@ -169,14 +165,14 @@ If running directly from the command line:
 
 ```
 cd scripts
-julia --project=.. 00c_prep_ecorrap_data.jl
+julia --project=.. 00a_prep_ecorrap_data.jl
 ```
 
 or via the REPL (from the project root):
 
 ```
 ; cd scripts
-include("00c_prep_ecorrap_data.jl")
+include("00a_prep_ecorrap_data.jl")
 ```
 
 Within each stage, `a` scripts produce data consumed by `b` scripts.
@@ -185,24 +181,23 @@ Within each stage, `a` scripts produce data consumed by `b` scripts.
 
 | Script | Inputs | Key outputs | Notes |
 |---|---|---|---|
-| `scripts/00c_prep_ecorrap_data.jl` | `data/ecorrap_benthic/latest/cover_estimate_DESCRIPTION.csv`, labelset mapping | `data/ecorrap_benthic/moore_estimate.csv`, `masig_estimate.csv`, `data/Masig_Reef_EcoRRAP_estimate.csv` | Produces annual mean cover by functional group for Moore and Masig from the expanded benthic data. Original version (old data format) archived as `00a_prep_ecorrap_data_ARCHIVED.jl`. Required for Stages 1–5. |
-| `scripts/00a_prep_oceanographic_stats.jl` | `data/ecorrap_logger/{TEMP,PSAL,CSPD,WAVES,PAR}_*/` | `data/ecorrap_logger/ocn_annual_stats.csv` | Processes all oceanographic instrument files into period-level summary statistics (mean + median) per site, depth category, and survey year. Two-step aggregation averages across multiple instruments before computing period statistics. Default window: `survey_year` (May–April). |
-| `scripts/00b_collate_expanded_dataset.jl` | `ecorrap_adult_juv_combined_*.csv`, `cover_estimate_DESCRIPTION.csv`, `ocn_annual_stats.csv` (output of `00a`), labelset CSV, `ecorrap to cscape species.csv`, `reef_site_code_lookup.csv` | `data/ecorrap_expanded.csv` | Joins individual coral tracking data with community benthic cover (aggregated from species to functional groups via the labelset) and oceanographic statistics. One row per individual coral observation. Run `00a` first. |
+| `scripts/00a_prep_ecorrap_data.jl` | `data/ecorrap_benthic/latest/cover_estimate_DESCRIPTION.csv`, labelset mapping | `data/ecorrap_benthic/moore_estimate.csv`, `masig_estimate.csv`, `data/Masig_Reef_EcoRRAP_estimate.csv` | Produces annual mean cover by functional group for Moore and Masig from the expanded benthic data. Original version (old data format) archived as `00a_prep_ecorrap_data_ARCHIVED.jl`. Required for Stages 1–5. |
+| `scripts/00b_study_area_map.jl` | `data/rrap_canonical_2025-07-15-T10-48-29.gpkg`, `../data/EcoRRAP data for IPM_250624.csv`, `../data/ecorrap_adult_juv_combined_2021_2023_24062025.csv` | `figs/study_area_overview.png` | Produces the GBR + Torres Strait study context figure with regional insets and highlighted study reefs. |
 
 ### Stage 1: Exploratory sensitivity analysis of growth/survival functions
 
 | Script | Inputs | Key outputs | Notes |
 |---|---|---|---|
-| `scripts/01a_exploratory_SA.jl` | EcoRRAP IPM data CSV | `figs/sensitivity/` PAWN heatmaps | Region-wide SA; helper functions used by `01b`/`01c` |
-| `scripts/01b_exploratory_SA_offshore_north.jl` | EcoRRAP data | `data/offshore_north/{overall,moore}/` CSVs + model `.dat` files, `figs/sensitivity/offshore_north/` | Fits and evaluates growth/survival models for offshore north region and Moore Reef |
-| `scripts/01c_exploratory_SA_torres_strait.jl` | EcoRRAP data | `data/torres_strait/{overall,masig,...}/` CSVs + model `.dat` files, `figs/sensitivity/torres_strait/` | Same for Torres Strait |
+| `scripts/01a_exploratory_SA.jl` | `data/ecorrap_unified.parquet` + species map CSV | `figs/sensitivity/` PAWN heatmaps | Region-wide SA; helper functions used by `01b`/`01c` |
+| `scripts/01b_exploratory_SA_offshore_north.jl` | `data/ecorrap_unified.parquet` + species map CSV | `data/offshore_north/{overall,moore}/` CSVs + model `.dat` files, `figs/sensitivity/offshore_north/` | Fits and evaluates growth/survival models for offshore north region and Moore Reef |
+| `scripts/01c_exploratory_SA_torres_strait.jl` | `data/ecorrap_unified.parquet` + species map CSV | `data/torres_strait/{overall,masig,...}/` CSVs + model `.dat` files, `figs/sensitivity/torres_strait/` | Same for Torres Strait |
 
 ### Stage 2: Regression model fitting (diameter-based)
 
 | Script | Inputs | Key outputs | Notes |
 |---|---|---|---|
-| `scripts/02a_offshore_north_fit_to_diameter.jl` | EcoRRAP data | `data/offshore_north/{overall,moore}/*_models.dat`, `figs/regressions/offshore_north/` | Fits final growth (degree-1) and survival (degree-2) polynomial regressions; **these `.dat` files are the models used in calibration** |
-| `scripts/02b_torres_strait_fit_to_diameter.jl` | EcoRRAP data | `data/torres_strait/{overall,masig}/*_models.dat`, `figs/regressions/torres_strait/` | Same for Torres Strait |
+| `scripts/02a_offshore_north_fit_to_diameter.jl` | `data/ecorrap_unified.parquet` + species map CSV | `data/offshore_north/{overall,moore}/*_models.dat`, `figs/regressions/offshore_north/` | Fits final growth (degree-1) and survival (degree-2) polynomial regressions; **these `.dat` files are the models used in calibration** |
+| `scripts/02b_torres_strait_fit_to_diameter.jl` | `data/ecorrap_unified.parquet` + species map CSV | `data/torres_strait/{overall,masig}/*_models.dat`, `figs/regressions/torres_strait/` | Same for Torres Strait |
 
 ### Stage 3: Moore Reef ensemble calibration and assessment
 
@@ -284,10 +279,9 @@ data/
 │   ├── moore_estimate.csv          # annual mean cover by functional group — Moore Reef
 │   ├── masig_estimate.csv          # annual mean cover by functional group — Masig Reef
 │   └── latest/                     # expanded benthic cover input files (all 13 sites)
-├── ecorrap_logger/                 # instrument data and derived stats
-│   ├── {TEMP,PSAL,CSPD,WAVES,PAR}_*/  # raw instrument files (input, not generated)
-│   └── ocn_annual_stats.csv        # period-level stats per site × depth × year (output of 00a)
-├── ecorrap_expanded.csv            # unified IPM + benthic cover + oceanographic dataset (output of 00b)
+├── ecorrap_logger/                 # instrument data and derived stats used by external collation tools
+│   └── {TEMP,PSAL,CSPD,WAVES,PAR}_*/  # raw instrument files (input, not generated)
+├── ecorrap_unified.parquet         # unified IPM + benthic cover + oceanographic dataset (produced externally)
 ├── reef_site_code_lookup.csv       # maps reef names to benthic and oceanographic site codes
 ├── dhw/                            # degree heating week time series
 ├── ensemble/<region>/<reef>/       # calibration outputs (*_ensemble_output.dat, *_initial_guess.dat, etc.)

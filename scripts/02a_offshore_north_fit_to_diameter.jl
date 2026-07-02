@@ -14,7 +14,7 @@ for reef in reefs
     mkpath(joinpath(FIG_DIR, "regressions", region, tgt_dir))
 
     growth_results = Kora.process_growth_models(
-        joinpath(OUTPUT_DIR, "ecorrap_expanded.parquet"),
+        joinpath(OUTPUT_DIR, "ecorrap_unified.parquet"),
         joinpath(OUTPUT_DIR, "ecorrap_to_cscape_species.csv");
         region=region,
         reef=reef,
@@ -24,7 +24,7 @@ for reef in reefs
     )
 
     survival_results = Kora.process_survival_models(
-        joinpath(OUTPUT_DIR, "ecorrap_expanded.parquet"),
+        joinpath(OUTPUT_DIR, "ecorrap_unified.parquet"),
         joinpath(OUTPUT_DIR, "ecorrap_to_cscape_species.csv");
         region=region,
         reef=reef,
