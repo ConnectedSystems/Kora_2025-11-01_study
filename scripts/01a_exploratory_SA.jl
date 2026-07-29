@@ -228,7 +228,7 @@ region_data = [
     ("offshore_north", joinpath(OUTPUT_DIR, "ecorrap_unified.parquet")),
     ("torres_strait", joinpath(OUTPUT_DIR, "ecorrap_unified.parquet"))
 ]
-species_file = joinpath(OUTPUT_DIR, "ecorrap_to_cscape_species.csv")
+species_file = joinpath(OUTPUT_DIR, "ecorrap_to_groups.csv")
 
 results = Dict{String,NamedTuple}()
 

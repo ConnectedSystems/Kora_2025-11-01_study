@@ -14,7 +14,7 @@ for reg_scale in region_scale
     for rt in reef_target
         model_results = Kora.process_ecorrap_models(
             joinpath(OUTPUT_DIR, "ecorrap_unified.parquet"),
-            joinpath(OUTPUT_DIR, "ecorrap_to_cscape_species.csv");
+            joinpath(OUTPUT_DIR, "ecorrap_to_groups.csv");
             region=reg_scale,
             reef=rt,
             save_models=true,
