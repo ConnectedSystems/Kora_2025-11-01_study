@@ -31,6 +31,14 @@ function binned_sa(
     per_bin_sample = n_obs ÷ n_bins
     bin_ids = Kora.adaptive_min_sample_binning(diameters, per_bin_sample)
 
+    # Drop columns that are constant across the full dataset — pawn's quantile
+    # step will fail with an empty data vector if all values in a bin are identical.
+    const_cols = [n for n in names(data) if length(unique(data[!, n])) == 1]
+    if !isempty(const_cols)
+        @warn "Dropping constant columns before sensitivity analysis" const_cols
+        select!(data, Not(const_cols))
+    end
+
     n_bins_actual = length(unique(bin_ids))
     g_bin = Matrix{Float64}(undef, n_bins_actual, ncol(data))
     bin_details = Matrix{Float64}(undef, n_bins_actual, 3)

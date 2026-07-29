@@ -210,6 +210,11 @@ for reg_scale in region_scale
 
         @info "Wave subset sizes" growth=nrow(wave_growth) survival=nrow(wave_surv) scale=scale_fn
 
+        if nrow(wave_growth) == 0 || nrow(wave_surv) == 0
+            @warn "No wave data for $(scale_fn), skipping wave-subset SA"
+            continue
+        end
+
         # ── helper: build SA-ready feature matrix with wave optionally included ──
         function prepare_wave_features(df::DataFrame, ignore_cols_base, include_wave::Bool)
             # Always drop the redundant wave columns; keep wave_hs_mean only when requested.
