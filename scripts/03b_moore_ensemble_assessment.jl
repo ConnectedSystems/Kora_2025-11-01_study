@@ -11,8 +11,6 @@ ensemble_output = deserialize(joinpath(ensemble_dir, "$(reef_id)_ensemble_output
 moore_ensemble = deserialize(joinpath(ensemble_dir, "$(reef_id)_tracked_candidates.dat"));
 ensemble_params = hcat(moore_ensemble.candidates...);
 
-parameter_identifiability_metrics(ensemble_params, ENSEMBLE_PARAM_NAMES)
-
 corr_df = parameter_correlation_analysis(
     ensemble_params, ENSEMBLE_PARAM_NAMES; corr_threshold=0.5
 )
@@ -201,7 +199,12 @@ fontsize_theme = Theme(; fontsize=14)
 set_theme!(fontsize_theme)
 
 # ── Ensemble correlations ─────────────────────────────────────────────────────
-parameter_identifiability_metrics(ensemble_params, ENSEMBLE_PARAM_NAMES)
+identifiability_df_full = parameter_identifiability_metrics(ensemble_params, ENSEMBLE_PARAM_NAMES)
+identifiability_df_full[!, :CV] .= round.(identifiability_df_full.CV; digits=3)
+identifiability_df_full[!, :range_ratio] .= round.(identifiability_df_full.range_ratio; digits=3)
+identifiability_df_full[!, :MAD] .= round.(identifiability_df_full.MAD; digits=3)
+identifiability_df_full[!, :rMAD] .= round.(identifiability_df_full.rMAD; digits=3)
+CSV.write(joinpath(ensemble_data_dir, "$(reef_id)_parameter_identifiability_full.csv"), identifiability_df_full)
 corr_threshold = parameter_correlation_analysis(
     ensemble_params, ENSEMBLE_PARAM_NAMES; corr_threshold=0.5
 )
