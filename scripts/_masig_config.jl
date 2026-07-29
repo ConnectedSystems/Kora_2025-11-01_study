@@ -22,9 +22,9 @@ file_paths = CalibrationDataPaths(;
 
 # Optimization settings
 opt_config = OptimizationConfig(;
-    max_steps=50_000,
+    max_steps=150_000,
     population_size=50,
-    fitness_threshold=0.4,
+    fitness_threshold=0.3,
     ensemble_members=250,
     trace_interval=10,
     random_seed=64
