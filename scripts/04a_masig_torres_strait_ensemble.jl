@@ -375,6 +375,36 @@ end
     @info "  Bias (β): $(round(calib_metrics.bias; digits=3))"
     @info "  Variability (α): $(round(calib_metrics.variability; digits=3))"
 
+    # ── Save comprehensive ensemble performance metrics ────────────────────────
+    if !isnothing(ensemble_res)
+        ens_mean_cover = vec(mean(ens_cover_pct; dims=2))
+        obs_valid = reef_obs.MEAN_LIVE_CORAL[v_ref_idx]
+
+        ens_mean_calib = calculate_performance_metrics(ens_mean_cover[c_sim_indices], obs_calib)
+        best_valid     = isempty(v_sim_idx) ? nothing : calculate_performance_metrics(cover[v_sim_idx], obs_valid)
+        ens_mean_valid = isempty(v_sim_idx) ? nothing : calculate_performance_metrics(ens_mean_cover[v_sim_idx], obs_valid)
+
+        perf_rows = []
+        for (split, src, m) in [
+            ("calibration", "best_member",   calib_metrics),
+            ("calibration", "ensemble_mean", ens_mean_calib),
+            ("validation",  "best_member",   best_valid),
+            ("validation",  "ensemble_mean", ens_mean_valid),
+        ]
+            isnothing(m) && continue
+            for (metric, val) in [
+                ("rmse", m.rmse), ("pearson", m.pearson), ("kendall", m.kendall),
+                ("bias_beta", m.bias), ("variability_alpha", m.variability),
+            ]
+                push!(perf_rows, (; split, source=src, metric, value=round(val; digits=4)))
+            end
+        end
+        CSV.write(
+            joinpath(ensemble_dir, "$(reef_config.reef_id)_ensemble_performance.csv"),
+            DataFrame(perf_rows)
+        )
+    end
+
     plot_calibration_results(
         reef_state, env_conditions, reef_obs, c_sim_indices, c_ref_indices,
         sim_year_range, cover, reef_config.area, benthic_estimate,
