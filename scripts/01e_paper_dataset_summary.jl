@@ -115,12 +115,12 @@ ts = region_stats(ts_g, ts_s)
 
 io = IOBuffer()
 
-println(io, "# Paper dataset summary")
-println(io, "")
 println(io, """
+# Paper dataset summary
+
 Numbers derived from the fully-filtered pipeline CSVs
 (`offshore_north/overall/` and `torres_strait/overall/`).
-Filters applied on top of `ecorrap_unified.parquet`:
+Filters applied on top of `ecorrap_expanded.parquet`:
 1. `lin_ext > 0` — excludes partial-mortality / shrinking colonies (growth only)
 2. Taxa filter — only taxa mapping to one of the 5 TARGET_GROUPS functional groups retained
 """)
@@ -128,66 +128,59 @@ Filters applied on top of `ecorrap_unified.parquet`:
 # ─── Per-region summary tables ────────────────────────────────────────────────
 
 for (label, st) in [("Offshore North", on), ("Torres Strait", ts)]
-    println(io, "---")
-    println(io, "")
-    println(io, "## $label")
-    println(io, "")
-    println(io, "| Statistic | Value |")
-    println(io, "|-----------|-------|")
-    println(io, "| Reefs | $(st.reefs) |")
-    println(io, "| Transitions (survey years) | $(st.transitions) |")
-    println(io, "| Growth observations | $(st.growth_n) |")
-    println(io, "| Survival observations | $(st.survival_n) |")
-    println(io, "| Monitoring sites (reef × habitat) | $(st.sites) |")
-    println(io, "| Plots (reef × habitat × plot) | $(st.plots) |")
-    println(io, "| Taxa — growth | $(st.taxa_g) |")
-    println(io, "| Taxa — survival | $(st.taxa_s) |")
-    println(io, "| Habitat types | $(st.habitats) |")
-    println(io, "| Mean survey interval — growth (days) | $(st.g_mean) (SD: $(st.g_sd); range: $(st.g_min)–$(st.g_max)) |")
-    println(io, "| Mean survey interval — survival (days) | $(st.s_mean) (SD: $(st.s_sd); range: $(st.s_min)–$(st.s_max)) |")
-    println(io, "")
+    println(io, """
+    ---
+
+    ## $label
+
+    | Statistic | Value |
+    |-----------|-------|
+    | Reefs | $(st.reefs) |
+    | Transitions (survey years) | $(st.transitions) |
+    | Growth observations | $(st.growth_n) |
+    | Survival observations | $(st.survival_n) |
+    | Monitoring sites (reef × habitat) | $(st.sites) |
+    | Plots (reef × habitat × plot) | $(st.plots) |
+    | Taxa — growth | $(st.taxa_g) |
+    | Taxa — survival | $(st.taxa_s) |
+    | Habitat types | $(st.habitats) |
+    | Mean survey interval — growth (days) | $(st.g_mean) (SD: $(st.g_sd); range: $(st.g_min)–$(st.g_max)) |
+    | Mean survey interval — survival (days) | $(st.s_mean) (SD: $(st.s_sd); range: $(st.s_min)–$(st.s_max)) |
+
+    """)
 end
 
 # ─── Per-transition breakdown ─────────────────────────────────────────────────
 
-println(io, "---")
-println(io, "")
-println(io, "## Observation counts by reef and transition")
-println(io, "")
+println(io, """
+---
+
+## Observation counts by reef and transition
+
+""")
+
+function print_transition_table(io::IOBuffer, label::String, kind::String, df::DataFrame)
+    println(io, "### $label — $kind\n")
+    counts = sort(combine(groupby(df, [:reef, :transition]), nrow => :n), [:reef, :transition])
+    println(io, "| reef | transition | n |\n|------|------------|---|")
+    for r in eachrow(counts)
+        println(io, "| $(r.reef) | $(r.transition) | $(r.n) |")
+    end
+    println(io, "| **total** | | **$(nrow(df))** |\n")
+end
 
 for (label, g, s) in [("Offshore North", on_g, on_s), ("Torres Strait", ts_g, ts_s)]
-    println(io, "### $label — growth")
-    println(io, "")
-    g_counts = combine(groupby(g, [:reef, :transition]), nrow => :n)
-    sort!(g_counts, [:reef, :transition])
-    println(io, "| reef | transition | n |")
-    println(io, "|------|------------|---|")
-    for r in eachrow(g_counts)
-        println(io, "| $(r.reef) | $(r.transition) | $(r.n) |")
-    end
-    println(io, "| **total** | | **$(nrow(g))** |")
-    println(io, "")
-
-    println(io, "### $label — survival")
-    println(io, "")
-    s_counts = combine(groupby(s, [:reef, :transition]), nrow => :n)
-    sort!(s_counts, [:reef, :transition])
-    println(io, "| reef | transition | n |")
-    println(io, "|------|------------|---|")
-    for r in eachrow(s_counts)
-        println(io, "| $(r.reef) | $(r.transition) | $(r.n) |")
-    end
-    println(io, "| **total** | | **$(nrow(s))** |")
-    println(io, "")
+    print_transition_table(io, label, "growth", g)
+    print_transition_table(io, label, "survival", s)
 end
 
 # ─── Variable summary table (matches coverage_report.md style) ───────────────
 
-println(io, "---")
-println(io, "")
-println(io, "## Study variable summary (pipeline-filtered)")
-println(io, "")
 println(io, """
+---
+
+## Study variable summary (pipeline-filtered)
+
 Sourced from the pipeline CSVs (post lin_ext and taxa filters).
 Diameter ranges from `diam` (growth obs.) and `diam_mort` (survival obs.).
 Depth: Offshore North uses plot-level survey depth (`depth_cont`) from the IPM photogrammetry
@@ -232,21 +225,14 @@ ts_s_diam = _fmt_cr(_vals(ts_s, :diam_mort))
 on_plot_n  = _nu(on_g, :plot)
 ts_quad_n  = _nu(ts_g, :quadrat_number)
 
-# depth — continuous logger mean only (depth_min_mean); categorical depth_cat not used
-# ON: logger data available at Moore Reef only (Lizard has no logger deployment)
-# TS: logger data available at Masig Reef only
+# depth — ON: plot-level survey depth (`depth_cont`); TS: continuous logger mean depth
+# (`depth_min_mean`, available at Masig Reef only). Categorical `depth_cat` is not used here.
 function _depth_stat(g, s, depth_col::Symbol)
-    col = depth_col
     rows = unique(vcat(
-        dropmissing(g[:, [:site_code, :habitat_area, col]]),
-        dropmissing(s[:, [:site_code, :habitat_area, col]])
+        dropmissing(g[:, [:site_code, :habitat_area, depth_col]]),
+        dropmissing(s[:, [:site_code, :habitat_area, depth_col]])
     ))
-    rows = unique(rows)
-    vals = collect(skipmissing(rows[!, col]))
-    isempty(vals) && return "N/A"
-    lo = round(minimum(vals); digits=2)
-    hi = round(maximum(vals); digits=2)
-    return "$(nrow(rows)) / [$(lo) – $(hi)]"
+    return _fmt_cr(rows[!, depth_col])
 end
 
 on_depth_str = _depth_stat(on_g, on_s, :depth_cont)
@@ -293,21 +279,22 @@ on_cid = "N/A"
 ts_cid_g = _nu(ts_g, :colony_id)
 ts_cid_s = _nu(ts_s, :colony_id)
 
-println(io, "| Identifier | Description | Offshore North<br>Count / [Range] | Torres Strait<br>Count / [Range] |")
-println(io, "|------------|-------------|-----------------------------------|----------------------------------|")
-println(io, "| `diam` / `diam_mort` | Estimated coral diameter at observation (cm): `diam` for growth obs., `diam_mort` for mortality obs. | Growth: $(on_g_diam)<br>Survival: $(on_s_diam) | Growth: $(ts_g_diam)<br>Survival: $(ts_s_diam) |")
-println(io, "| `plot` / `quadrat` | Specific monitored plot (ON) or quadrat (TS) | $(on_plot_n) | $(ts_quad_n) |")
-println(io, "| `depth` | Continuous depth (m): ON uses plot-level survey depth (`depth_cont`) from IPM photogrammetry file; TS uses logger mean depth (`depth_min_mean`) from EcoRRAP in-situ loggers (Masig Reef only) | $(on_depth_str) | $(ts_depth_str) |")
-println(io, "| `temp` | Mean of daily temperature (°C) from EcoRRAP in-situ loggers; daily-max mean for ON, daily mean for TS | $(on_temp_str) | $(ts_temp_str) |")
-println(io, "| `habitat` | Reef habitat zone code (`habitat_area`) | $(on_hab_str) | $(ts_hab_str) |")
-println(io, "| `lon` | Longitude (decimal degrees) | $(on_lon_str) | $(ts_lon_str) |")
-println(io, "| `lat` | Latitude (decimal degrees) | $(on_lat_str) | $(ts_lat_str) |")
-println(io, "| `site` | Reef-level site code | $(on_site_n) | $(ts_site_n) |")
-println(io, "| `reef` | Monitored reef | $(on_reef_str) | $(ts_reef_str) |")
-println(io, "| `taxa` | Individual taxonomic group | Growth: $(on_taxa_g_n)<br>Survival: $(on_taxa_s_n) | Growth: $(ts_taxa_g_n)<br>Survival: $(ts_taxa_s_n) |")
-println(io, "| `functional_group` | Morphological grouping of taxa | $(on_fg_n) | $(ts_fg_n) |")
-println(io, "| `colony_id` | Individual coral identifier | $(on_cid) | Growth: $(ts_cid_g)<br>Survival: $(ts_cid_s) |")
-println(io, "")
+println(io, """
+| Identifier | Description | Offshore North<br>Count / [Range] | Torres Strait<br>Count / [Range] |
+|------------|-------------|-----------------------------------|----------------------------------|
+| `diam` / `diam_mort` | Estimated coral diameter at observation (cm): `diam` for growth obs., `diam_mort` for mortality obs. | Growth: $(on_g_diam)<br>Survival: $(on_s_diam) | Growth: $(ts_g_diam)<br>Survival: $(ts_s_diam) |
+| `plot` / `quadrat` | Specific monitored plot (ON) or quadrat (TS) | $(on_plot_n) | $(ts_quad_n) |
+| `depth` | Continuous depth (m): ON uses plot-level survey depth (`depth_cont`) from IPM photogrammetry file; TS uses logger mean depth (`depth_min_mean`) from EcoRRAP in-situ loggers (Masig Reef only) | $(on_depth_str) | $(ts_depth_str) |
+| `temp` | Mean of daily temperature (°C) from EcoRRAP in-situ loggers; daily-max mean for ON, daily mean for TS | $(on_temp_str) | $(ts_temp_str) |
+| `habitat` | Reef habitat zone code (`habitat_area`) | $(on_hab_str) | $(ts_hab_str) |
+| `lon` | Longitude (decimal degrees) | $(on_lon_str) | $(ts_lon_str) |
+| `lat` | Latitude (decimal degrees) | $(on_lat_str) | $(ts_lat_str) |
+| `site` | Reef-level site code | $(on_site_n) | $(ts_site_n) |
+| `reef` | Monitored reef | $(on_reef_str) | $(ts_reef_str) |
+| `taxa` | Individual taxonomic group | Growth: $(on_taxa_g_n)<br>Survival: $(on_taxa_s_n) | Growth: $(ts_taxa_g_n)<br>Survival: $(ts_taxa_s_n) |
+| `functional_group` | Morphological grouping of taxa | $(on_fg_n) | $(ts_fg_n) |
+| `colony_id` | Individual coral identifier | $(on_cid) | Growth: $(ts_cid_g)<br>Survival: $(ts_cid_s) |
+""")
 
 # ─── Write to file ────────────────────────────────────────────────────────────
 
