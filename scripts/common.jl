@@ -27,8 +27,8 @@ surv_ignore_cols = [
     :class_train, :class_test, :class_train_mean, :class_test_mean, :surv_logclass,
     :logdiam, Symbol("days_t1.t2"), :cluster, :bleaching_scores, :cscape_group, :Cscape_group,
     :surv, :diam, :diamnext, :survival_use, :growth_use, :class_test_std,
-    :class_train_std, :depth_category, :dataset, :water_clarity,
-    :site_new, :transition, :plot, :size, :sizenext,
+    :class_train_std, :depth_category, :depth_cat, :dataset, :water_clarity,
+    :site_new, :transition, :plot, :size, :sizenext, :reef, :reef_name, :site, :site_code,
     :clarified_note_2023_july, Symbol("clarified_note_2023.1"),
     :clarified_note_2021, :clarified_note_2022, :clarified_note_2023,
     :date_2021, :date_2022, :date_2023,
@@ -36,19 +36,22 @@ surv_ignore_cols = [
     :acro_table_cover, :acro_corym_cover, :corym_non_acro_cover,
     :small_massive_cover, :large_massive_cover, :total_coral_cover,
     :est_1yo_growth, :growth_rate,
-    :n_days_temp, :date_t1, :date_t2, :psal_mean_mean, :psal_mean_median,
+    :n_days_temp, :date_t1, :date_t2, :ereefs_temp_date, :psal_mean_mean, :psal_mean_median,
     :n_days_psal, :cspd_mean_mean, :cspd_mean_median, :n_days_cspd, :wave_hs_mean,
     :wave_hs_median,
     :n_days_waves, :par_dli_mean, :par_dli_median, :n_days_par,
-    :temp_mean_mean, :temp_mean_median, :temp_max_median
+    :temp_mean_median, :temp_max_median, :temp_mean_mean, :temp_max_mean,
+    :depth_m, :depth_min_mean, :depth_min_median, :depth_max_mean, :depth_max_median, :depth_range_mean, :depth_range_median,
+    :data_source_csv, :ocn_site_code, :survey_year, :n_days_depth,
+    :colony_id
 ]
 
 growth_ignore_cols = [
     :class_train, :class_test, :class_train_mean, :class_test_mean, :surv_logclass,
     :logdiam, Symbol("days_t1.t2"), :cluster, :bleaching_scores, :cscape_group, :Cscape_group,
     :surv, :diamnext, :survival_use, :growth_use, :class_test_std,
-    :class_train_std, :depth_category, :dataset, :water_clarity,
-    :site_new, :transition, :plot, :logdiam, :growth, :lin_ext, :size, :sizenext,
+    :class_train_std, :depth_category, :depth_cat, :dataset, :water_clarity,
+    :site_new, :transition, :plot, :logdiam, :growth, :lin_ext, :size, :sizenext, :reef, :reef_name, :site, :site_code,
     :clarified_note_2023_july, Symbol("clarified_note_2023.1"),
     :clarified_note_2021, :clarified_note_2022, :clarified_note_2023,
     :date_2021, :date_2022, :date_2023,
@@ -56,11 +59,14 @@ growth_ignore_cols = [
     :acro_table_cover, :acro_corym_cover, :corym_non_acro_cover,
     :small_massive_cover, :large_massive_cover, :total_coral_cover,
     :est_1yo_growth, :growth_rate,
-    :n_days_temp, :date_t1, :date_t2, :psal_mean_mean, :psal_mean_median,
+    :n_days_temp, :date_t1, :date_t2, :ereefs_temp_date, :psal_mean_mean, :psal_mean_median,
     :n_days_psal, :cspd_mean_mean, :cspd_mean_median, :n_days_cspd, :wave_hs_mean,
     :wave_hs_median,
     :n_days_waves, :par_dli_mean, :par_dli_median, :n_days_par,
-    :temp_mean_mean, :temp_mean_median, :temp_max_median
+    :temp_mean_median, :temp_max_median, :temp_mean_mean, :temp_max_mean,
+    :depth_m, :depth_min_mean, :depth_min_median, :depth_max_mean, :depth_max_median, :depth_range_mean, :depth_range_median,
+    :data_source_csv, :ocn_site_code, :survey_year, :n_days_depth,
+    :colony_id
 ]
 
 ENSEMBLE_PARAM_NAMES = [
