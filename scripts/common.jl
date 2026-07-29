@@ -96,47 +96,74 @@ ENSEMBLE_PARAM_NAMES = [
 ]
 
 function cleanup_features!(X::DataFrame)
+    drop_cols = String[]
     for n in names(X)
-        if eltype(X[!, n]) <: Union{AbstractString,Missing}
-            X[!, n] .= Int64.(categorical(X[!, n]).refs)
+        T = nonmissingtype(eltype(X[!, n]))
+        if T <: AbstractString
+            X[!, n] = Float64.(categorical(X[!, n]).refs)
+        elseif T <: AbstractFloat
+            # missing → NaN
+            X[!, n] = [ismissing(x) ? NaN : Float64(x) for x in X[!, n]]
+        elseif T <: Real  # Bool, Int32, Int64, etc.
+            # missing → 0.0
+            X[!, n] = [ismissing(x) ? 0.0 : Float64(x) for x in X[!, n]]
+        else
+            push!(drop_cols, n)
         end
-
-        if eltype(X[!, n]) <: Union{Float64,Missing}
-            # Use coalesce to handle missing values and cast to Float64 in one pass
-            X[!, n] = [coalesce(x, NaN) for x in X[!, n]]
-        end
-        # if eltype(X[!, n]) <: Union{Float64,Missing}
-        #     try
-        #         X[!, n] .= Float64.(X[!, n])
-        #     catch
-        #         Main.@infiltrate
-        #     end
-        # end
-
-        if eltype(X[!, n]) <: Union{Int64,Missing}
-            X[!, n] = [coalesce(x, 0) for x in X[!, n]]
-        end
+    end
+    if !isempty(drop_cols)
+        @warn "Dropping non-numeric columns from feature matrix" drop_cols
+        select!(X, Not(drop_cols))
     end
 end
 
 const _DISPLAY_RENAMES = Dict(
-    :Cscape_group => :functional_group,
-    :cscape_group => :functional_group,
-    :diam => :diameter,
-    :diam_mort => :diameter,
-    :depth_cont => :depth,
-    :plot_uid => :plot,
-    :site_uid => :site,
-    :ubed90_median => :bottom_stress,
-    :temp => :temperature,
-    :temp_max_mean => :temperature,
-    :habitat_area => :habitat
+    :Cscape_group         => :functional_group,
+    :cscape_group         => :functional_group,
+    :diam                 => :diameter,
+    :diam_mort            => :diameter,
+    :depth_cont           => Symbol("Observed Depth (m)"),
+    :plot_uid             => :plot,
+    :site_uid             => :site,
+    :ubed90_median        => Symbol("Bottom Stress"),
+    :temp                 => :ipm_temperature,
+    :temp_max_mean        => :logger_temperature_mean_max,
+    :temp_mean_mean       => :logger_temperature_mean_mean,
+    :habitat_area         => :habitat,
+    # Environmental covariates — explicit human-readable labels
+    :wave_ubed90          => Symbol("Bottom Stress"),
+    :depth_bathy_m        => Symbol("Modelled Depth (m)"),
+    :depth_m              => Symbol("Depth (m)"),
+    :depth_cat            => Symbol("Depth Category"),
+    :ereefs_temp_mean     => Symbol("eReefs Temperature Mean"),
+    :ereefs_temp_max      => Symbol("eReefs Temperature Max"),
+    # Identifier / classification columns
+    :colony_id            => :colony,
+    :lat                  => :latitude,
+    :lon                  => :longitude,
+    :taxa                 => :taxon,
 )
 
 function rename_for_display!(df::DataFrame)
     cols = propertynames(df)
     pairs = [old => new for (old, new) in _DISPLAY_RENAMES if old in cols]
     isempty(pairs) || rename!(df, pairs...)
+
+    # Fallback: any column name still containing underscores gets underscores
+    # replaced with spaces and titlecased, so no snake_case labels appear in
+    # figures.  Skip if the candidate name already exists as another column.
+    occupied = Set(string.(propertynames(df)))
+    fallback_pairs = Pair{Symbol,Symbol}[]
+    for col in propertynames(df)
+        s = string(col)
+        occursin('_', s) || continue
+        candidate = Symbol(titlecase(replace(s, "_" => " ")))
+        string(candidate) ∈ occupied && continue
+        push!(fallback_pairs, col => candidate)
+        push!(occupied, string(candidate))
+    end
+    isempty(fallback_pairs) || rename!(df, fallback_pairs...)
+
     return df
 end
 
