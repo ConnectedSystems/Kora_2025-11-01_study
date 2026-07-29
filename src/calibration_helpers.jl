@@ -269,7 +269,7 @@ function create_objective_function(
         end_mae = abs(sims[end] - obs[end])
         We = (init_mae + end_mae)
         # rmse = Kora.RMSE(sims, obs)
-        pearson = 1.0 - abs(Kora.pearson(sims, obs))
+        pearson = (1.0 - Kora.pearson(sims, obs)) / 2.0
 
         sim_μ, std_hat = mean_and_std(sims)
 
