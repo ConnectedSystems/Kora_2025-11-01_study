@@ -83,7 +83,7 @@ at `../data/` relative to the study root).
 |---|---|
 | `ecorrap_adult_juv_combined_2021_2023_24062025.csv` | EcoRRAP program (AIMS) |
 | `EcoRRAP data for IPM_250624.csv` | EcoRRAP program (AIMS) |
-| `ecorrap to cscape species.csv` | EcoRRAP program (AIMS) — maps taxon codes to Kora functional groups |
+| `ecorrap_to_groups.csv` | EcoRRAP program (AIMS) - maps taxon codes to Kora functional groups |
 
 The first incorporates juvenile quadrat data from:
 > Doropoulos, C., Alvarez-Noriega, M., Fabricius, K., Ferrari, R., Mumby, P.J., Noonan, S.H.C., Orr, M., >
@@ -92,6 +92,8 @@ The first incorporates juvenile quadrat data from:
 
 The second dataset was collated by Dr. Anna Cresswell (Australian Institute of Marine Science)
 and can be provided on request.
+
+The third file was compiled based on advise from Dr. Anna Cresswell and Dr. Renata Ferrari.
 
 #### Processed outputs derived from restricted data
 
