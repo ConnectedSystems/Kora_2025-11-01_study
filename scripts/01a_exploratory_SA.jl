@@ -238,13 +238,6 @@ for (region, ecorrap_file) in region_data
     )
 end
 
-# Display figures
-for (region, _) in region_data
-    @info "Displaying results for $region"
-    display(results[region].growth.figure)
-    display(results[region].survival.figure)
-end
-
 # Save results
 for (region, _) in region_data
     region_overall_dir = joinpath(FIG_DIR, "sensitivity", region, "overall")

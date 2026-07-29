@@ -77,7 +77,6 @@ growth_paths = [
 ]
 
 fig1 = compile_composite(growth_paths, labels_4)
-display(fig1)
 save(joinpath(output_dir, "SA_growth.png"), fig1; px_per_unit=DPI)
 @info "Saved Figure 1: SA_growth.png"
 
@@ -91,7 +90,6 @@ surv_paths = [
 ]
 
 fig2 = compile_composite(surv_paths, labels_4)
-display(fig2)
 save(joinpath(output_dir, "SA_survival.png"), fig2; px_per_unit=DPI)
 @info "Saved Figure 2: SA_survival.png"
 
@@ -103,7 +101,6 @@ binned_growth_paths = [
 ]
 
 fig3 = compile_composite(binned_growth_paths, labels_2)
-display(fig3)
 save(joinpath(output_dir, "SA_binned_growth.png"), fig3; px_per_unit=DPI)
 @info "Saved Figure 3: SA_binned_growth.png"
 
@@ -115,6 +112,5 @@ binned_surv_paths = [
 ]
 
 fig4 = compile_composite(binned_surv_paths, labels_2)
-display(fig4)
 save(joinpath(output_dir, "SA_binned_survival.png"), fig4; px_per_unit=DPI)
 @info "Saved Figure 4: SA_binned_survival.png"
