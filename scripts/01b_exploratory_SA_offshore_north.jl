@@ -83,6 +83,7 @@ for reg_scale in region_scale
         Si_growth = pawn(all_growth, all_y_growth; S=10)
         f = plot_pawn_heatmap(Si_growth, "Growth - $(human_scale_name)")
         save("$(fig_output)/Si_$(scale_fn)_growth_overall.png", f; px_per_unit=DPI)
+        serialize(joinpath(reef_dir, "Si_$(scale_fn)_growth_overall.dat"), Si_growth)
 
         # Analysis indicate that for specific locales, diameter is an influential factor.
         # But this may differ between locales, need to do further analyses.
@@ -91,6 +92,7 @@ for reg_scale in region_scale
         Si_surv = pawn(all_surv, convert.(Float64, all_y_surv); S=10)
         f = plot_pawn_heatmap(Si_surv, "Survival - $(human_scale_name)")
         save("$(fig_output)/Si_$(scale_fn)_survival_overall.png", f; px_per_unit=DPI)
+        serialize(joinpath(reef_dir, "Si_$(scale_fn)_survival_overall.dat"), Si_surv)
 
         #### Group-specific analyses ####
         ####
@@ -155,12 +157,14 @@ for reg_scale in region_scale
             push!(Si_growth_plots, f)
             push!(Si_growth_data, Si_growth)
             save("$(fig_output)/Si_$(scale_fn)_$(taxa)_growth.png", f; px_per_unit=DPI)
+            serialize(joinpath(reef_dir, "Si_$(scale_fn)_$(taxa)_growth.dat"), Si_growth)
 
             Si_surv = pawn(X_surv, convert.(Float64, y_surv); S=10)
             f = plot_pawn_heatmap(Si_surv, "Survival - $(human_scale_name)\n$(group_title)")
             push!(Si_surv_plots, f)
             push!(Si_surv_data, Si_surv)
             save("$(fig_output)/Si_$(scale_fn)_$(taxa)_survival.png", f; px_per_unit=DPI)
+            serialize(joinpath(reef_dir, "Si_$(scale_fn)_$(taxa)_survival.dat"), Si_surv)
         end
     end
 end

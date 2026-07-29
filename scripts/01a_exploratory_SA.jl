@@ -259,4 +259,17 @@ for (region, _) in region_data
         results[region].survival.figure;
         px_per_unit=DPI
     )
+
+    data_dir = joinpath(OUTPUT_DIR, region, "overall")
+    mkpath(data_dir)
+    serialize(joinpath(data_dir, "binned_SA_growth.dat"), (
+        indices=results[region].growth.indices,
+        bins=results[region].growth.bins,
+        features=results[region].growth.features
+    ))
+    serialize(joinpath(data_dir, "binned_SA_survival.dat"), (
+        indices=results[region].survival.indices,
+        bins=results[region].survival.bins,
+        features=results[region].survival.features
+    ))
 end
