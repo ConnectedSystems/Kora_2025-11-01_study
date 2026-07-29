@@ -1,0 +1,5 @@
+# Rendered/generated outputs — keep only source files under version control.
+paper.docx
+eq_test.html
+eq_test_files/
+CoralFlow draft*.docx
