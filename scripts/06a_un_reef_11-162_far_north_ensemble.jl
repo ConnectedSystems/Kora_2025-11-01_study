@@ -86,15 +86,8 @@ function run_calibration(
 
     @info "Loading environmental data..."
     reef_uid = "11162100104"
-    ds = open_dataset(file_paths.dhw_scenarios)
-    historic_dhw = vec(
-        NetCDF.read(
-            ds.dhw_scens[
-                locs=At(reef_uid),
-                scenarios=1,
-                timesteps=At(start_year, end_year)
-            ]
-        )
+    historic_dhw = load_historical_dhw(
+        file_paths.dhw_scenarios, reef_uid, start_year, end_year
     )
 
     # Load models

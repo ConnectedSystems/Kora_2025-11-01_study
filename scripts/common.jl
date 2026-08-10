@@ -10,7 +10,8 @@ using CategoricalArrays
 
 using Dates
 using CSV, DataFrames
-using NetCDF, YAXArrays
+using NCDatasets
+using DimensionalData
 using Parquet2
 import GeoDataFrames as GDF
 
@@ -177,7 +178,7 @@ most influential factor appears at the top.
 Axis labels are always set explicitly so factor names are never left to chance.
 """
 function plot_pawn_heatmap(
-    Si::YAXArray,
+    Si::AbstractDimArray,
     title::String;
     stats::Vector{Symbol}=[:mean, :std],
     fig_size::Tuple{Int,Int}=(800, 286),
@@ -185,7 +186,7 @@ function plot_pawn_heatmap(
 )
     # Sort factors by mean PAWN index — slice scalar At() to avoid At(vector) ambiguity
     factor_order = sortperm(collect(Si[PAWNᵢ=At(:mean)]); rev=true)
-    factor_labels = string.(collect(Si.axes[1]))[factor_order]
+    factor_labels = string.(collect(dims(Si, 1)))[factor_order]
 
     # Build data matrix by stacking individual stat slices (n_factors × n_stats)
     data = hcat([collect(Si[PAWNᵢ=At(s)])[factor_order] for s in stats]...)

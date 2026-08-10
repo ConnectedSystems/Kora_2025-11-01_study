@@ -157,9 +157,9 @@ else
 end
 
 # ── Export PAWN results as CSV ────────────────────────────────────────────────
-function _pawn_to_csv(results::YAXArray, path::String)
-    factors = string.(collect(results.axes[1]))
-    stats   = collect(results.axes[2])
+function _pawn_to_csv(results::AbstractDimArray, path::String)
+    factors = string.(collect(dims(results, 1)))
+    stats   = collect(dims(results, 2))
     df = DataFrame(:parameter => factors)
     for s in stats
         df[!, string(s)] = collect(results[PAWNᵢ=At(s)])
@@ -318,7 +318,7 @@ an internal pool of reef_state copies.
 """
 function create_timeseries_function(
     reef_state::ReefState,
-    env_conditions::YAXArray,
+    env_conditions::AbstractDimArray,
     area::Float32,
     seed::Int,
     use_scalers::Bool

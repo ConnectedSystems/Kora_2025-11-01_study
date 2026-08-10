@@ -11,54 +11,56 @@ import Distributions: sample
 import QuasiMonteCarlo as QMC
 import QuasiMonteCarlo: SobolSample, OwenScramble
 
-using YAXArrays
+using DimensionalData
 
 """
-    DataCube(data::AbstractArray; kwargs...)::YAXArray
+    DataCube(data::AbstractArray; kwargs...)::DimArray
 
-Constructor for YAXArray. When used with `axes_names`, the axes labels will be UnitRanges
+Constructor for DimArray. When used with `axes_names`, the axes labels will be UnitRanges
 from 1 up to that axis length.
 
 # Arguments
-- `data` : Array of data to be used when building the YAXArray
+- `data` : Array of data to be used when building the DimArray
 - `axes_names` : Tuple of axes names
-- `properties` : NamedTuple of metadata to be added to the YAXArray
+- `properties` : NamedTuple of metadata to be added to the DimArray
 """
 function DataCube(
     data::AbstractArray; properties::Dict{Symbol,Any}=Dict{Symbol,Any}(), kwargs...
-)::YAXArray
-    return YAXArray(Tuple(Dim{name}(val) for (name, val) in kwargs), data, properties)
+)::DimArray
+    return DimArray(
+        data, Tuple(Dim{name}(val) for (name, val) in kwargs); metadata=properties
+    )
 end
 function DataCube(
     data::AbstractArray, axes_names::Tuple; properties::Dict{Symbol,Any}=Dict{Symbol,Any}()
-)::YAXArray
+)::DimArray
     return DataCube(
         data; properties=properties, NamedTuple{axes_names}(1:len for len in size(data))...
     )
 end
 function DataCube(
     data::AbstractArray, axes_names::Tuple, properties::Dict{Symbol,Any}
-)::YAXArray
+)::DimArray
     return DataCube(
         data; properties=properties, NamedTuple{axes_names}(1:len for len in size(data))...
     )
 end
 
 """
-    ZeroDataCube(; T::DataType=Float64, kwargs...)::YAXArray
-    ZeroDataCube(axes_names::Tuple, axes_sizes::Tuple; T::DataType=Float64)::YAXArray
+    ZeroDataCube(; T::DataType=Float64, kwargs...)::DimArray
+    ZeroDataCube(axes_names::Tuple, axes_sizes::Tuple; T::DataType=Float64)::DimArray
 
-Constructor for YAXArray with all entries equal zero. When `axes_name` and `axes_sizes`
+Constructor for DimArray with all entries equal zero. When `axes_name` and `axes_sizes`
 are passed, all axes labels will be ranges.
 
 # Arguments
 - `axes_names` : Tuple of axes names
 - `axes_sizes` : Tuple of axes sizes
-- `properties` : NamedTuple of metadata to be added to the YAXArray
+- `properties` : NamedTuple of metadata to be added to the DimArray
 """
 function ZeroDataCube(;
     T::Type{D}=Float64, properties::Dict{Symbol,Any}=Dict{Symbol,Any}(), kwargs...
-)::YAXArray where {D}
+)::DimArray where {D}
     return DataCube(
         zeros(T, [length(val) for (name, val) in kwargs]...); properties=properties,
         kwargs...
@@ -69,7 +71,7 @@ function ZeroDataCube(
     axes_sizes::Tuple;
     properties::Dict{Symbol,Any}=Dict{Symbol,Any}(),
     T::Type{D}=Float64
-)::YAXArray where {D}
+)::DimArray where {D}
     return ZeroDataCube(;
         T=T, properties=properties, NamedTuple{axes_names}(1:size for size in axes_sizes)...
     )
@@ -79,7 +81,7 @@ function ZeroDataCube(
     axes_sizes::Tuple,
     properties::Dict{Symbol,Any};
     T::Type{D}=Float64
-)::YAXArray where {D}
+)::DimArray where {D}
     return ZeroDataCube(;
         T=T, properties=properties, NamedTuple{axes_names}(1:size for size in axes_sizes)...
     )
@@ -97,10 +99,10 @@ function ks_statistic(ks::ApproximateKSTest)::Float64
 end
 
 """
-    pawn(X::AbstractMatrix{<:Real}, y::AbstractVector{<:Real}, factor_names::Vector{String}; S::Int64=10)::YAXArray
-    pawn(X::DataFrame, y::AbstractVector{<:Real}; S::Int64=10)::YAXArray
-    pawn(X::YAXArray, y::Union{YAXArray,AbstractVector{<:Real}}; S::Int64=10)::YAXArray
-    pawn(X::Union{DataFrame,AbstractMatrix{<:Real}}, y::AbstractMatrix{<:Real}; S::Int64=10)::YAXArray
+    pawn(X::AbstractMatrix{<:Real}, y::AbstractVector{<:Real}, factor_names::Vector{String}; S::Int64=10)::DimArray
+    pawn(X::DataFrame, y::AbstractVector{<:Real}; S::Int64=10)::DimArray
+    pawn(X::AbstractDimArray, y::Union{AbstractDimArray,AbstractVector{<:Real}}; S::Int64=10)::DimArray
+    pawn(X::Union{DataFrame,AbstractMatrix{<:Real}}, y::AbstractMatrix{<:Real}; S::Int64=10)::DimArray
 
 Calculates the PAWN sensitivity index.
 Implementation and docstring below adapted from the SALib Python package.
@@ -125,7 +127,7 @@ minimum threshold (i.e., `(x - dummy) / stdev(x)`).
 - `S` : Number of slides (default: 10)
 
 # Returns
-YAXArray, of min, mean, lower bound, median, upper bound, max, std, and cv summary statistics.
+DimArray, of min, mean, lower bound, median, upper bound, max, std, and cv summary statistics.
 
 # References
 1. Pianosi, F., Wagener, T., 2018.
@@ -164,7 +166,7 @@ function pawn(
     y::AbstractVector{<:Real},
     factor_names::Vector{String};
     S::Int64=10
-)::YAXArray
+)::DimArray
     N, D = size(X)
     step = 1 / S
     seq = 0.0:step:1.0
@@ -234,30 +236,29 @@ function pawn(
     row_names = Symbol.(factor_names)
     return DataCube(results; factors=row_names, PAWNᵢ=col_names)
 end
-function pawn(X::DataFrame, y::AbstractVector{<:Real}; S::Int64=10)::YAXArray
+function pawn(X::DataFrame, y::AbstractVector{<:Real}; S::Int64=10)::DimArray
     return pawn(Matrix(X), y, names(X); S=S)
 end
 function pawn(
-    X::YAXArray,
+    X::AbstractDimArray,
     y::AbstractVector{<:Real};
     S::Int64=10
-)::YAXArray
-    return pawn(X, y, collect(X.axes[2]); S=S)
+)::DimArray
+    return pawn(parent(X), y, string.(collect(dims(X, 2))); S=S)
 end
 function pawn(
-    X::YAXArray,
-    y::YAXArray;
+    X::AbstractDimArray,
+    y::AbstractDimArray;
     S::Int64=10
-)::YAXArray
-    # YAXrrays will raise an error if any of the masked boolean indexing in pawn is empty so
-    # vec(y) is required
-    return pawn(X, vec(y), collect(X.axes[2]); S=S)
+)::DimArray
+    # Boolean indexing in pawn errors when the mask selects nothing, so vec(y) is required
+    return pawn(parent(X), vec(y), string.(collect(dims(X, 2))); S=S)
 end
 function pawn(
-    X::Union{DataFrame,YAXArray},
+    X::Union{DataFrame,AbstractDimArray},
     y::AbstractMatrix{<:Real};
     S::Int64=10
-)::YAXArray
+)::DimArray
     N, D = size(y)
     if N > 1 && D > 1
         msg::String = string(

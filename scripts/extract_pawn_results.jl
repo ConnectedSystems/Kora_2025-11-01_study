@@ -7,19 +7,22 @@ Run from within scripts/:
 
 using Serialization
 using CSV, DataFrames
-using YAXArrays
 using DimensionalData
+
+# NOTE: `*_pawn_results.dat` written before the DimensionalData migration hold `YAXArray`s
+# and can no longer be deserialized. Re-run the corresponding `*_ensemble_assessment.jl`
+# script to regenerate them as `DimArray`s.
 
 OUTPUT_DIR = joinpath(@__DIR__, "..", "data")
 
 """
-    pawn_to_dataframe(results::YAXArray) -> DataFrame
+    pawn_to_dataframe(results::AbstractDimArray) -> DataFrame
 
-Convert a PAWN YAXArray result (factors × PAWNᵢ stats) to a tidy DataFrame.
+Convert a PAWN result cube (factors × PAWNᵢ stats) to a tidy DataFrame.
 """
-function pawn_to_dataframe(results::YAXArray)
-    factors = string.(collect(results.axes[1]))
-    stats   = collect(results.axes[2])
+function pawn_to_dataframe(results::AbstractDimArray)
+    factors = string.(collect(dims(results, 1)))
+    stats   = collect(dims(results, 2))
     df = DataFrame(:parameter => factors)
     for s in stats
         df[!, string(s)] = collect(results[PAWNᵢ=At(s)])

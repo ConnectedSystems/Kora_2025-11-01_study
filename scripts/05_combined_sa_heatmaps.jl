@@ -30,14 +30,14 @@ so that both heatmaps share a consistent scale.
 """
 function plot_pawn_heatmap_into!(
     layout_pos,
-    Si::YAXArray,
+    Si::AbstractDimArray,
     title::String;
     stats::Vector{Symbol}=[:mean, :std],
     xticklabelrotation::Real=π / 2,
     colorrange::Tuple{<:Real,<:Real}=(-0.1, 0.5)
 )
     factor_order  = sortperm(collect(Si[PAWNᵢ=At(:mean)]); rev=true)
-    factor_labels = string.(collect(Si.axes[1]))[factor_order]
+    factor_labels = string.(collect(dims(Si, 1)))[factor_order]
 
     data       = hcat([collect(Si[PAWNᵢ=At(s)])[factor_order] for s in stats]...)
     stat_labels = string.(stats)
@@ -60,7 +60,7 @@ function plot_pawn_heatmap_into!(
 end
 
 # ── Helper: compute max PAWN value across a set of results ────────────────────
-function pawn_data_max(Si::YAXArray, stats::Vector{Symbol}=[:mean, :std])
+function pawn_data_max(Si::AbstractDimArray, stats::Vector{Symbol}=[:mean, :std])
     data = hcat([collect(Si[PAWNᵢ=At(s)]) for s in stats]...)
     return maximum(data)
 end

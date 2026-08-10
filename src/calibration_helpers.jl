@@ -33,27 +33,48 @@ function get_reef_uid(canonical_reefs_file::String, reef_id::String)
 end
 
 """
-    load_historical_dhw(dhw_file, reef_uid, start_year, end_year)
+    load_historical_dhw(dhw_file, reef_uid, start_year, end_year; scenario=1)
 
-Load historical DHW data for specified time period.
+Load historical DHW data for a single location over the specified time period.
+
+Reads the `dhw_scens` variable from a DHW scenario NetCDF, selecting the location
+matching `reef_uid` and all timesteps in `start_year:end_year` (inclusive).
+
+# Returns
+`Vector` of DHW values, one per timestep.
 """
 function load_historical_dhw(
     dhw_file::String,
     reef_uid,
     start_year::Int,
-    end_year::Int
+    end_year::Int;
+    scenario::Int=1
 )
-    ds = open_dataset(dhw_file)
-    historic_dhw = vec(
-        read(
-            ds.dhw_scens[
-                locs=At(reef_uid),
-                scenarios=1,
-                timesteps=At(start_year, end_year)
-            ]
+    return NCDataset(dhw_file, "r") do ds
+        dhw_scens = ds["dhw_scens"]
+
+        locs = ds["locs"][:]
+        loc_idx = findfirst(==(reef_uid), locs)
+        if isnothing(loc_idx)
+            throw(ArgumentError("Location $(reef_uid) not found in $(dhw_file)"))
+        end
+
+        timesteps = ds["timesteps"][:]
+        year_idx = findall(start_year .<= timesteps .<= end_year)
+        if isempty(year_idx)
+            throw(
+                ArgumentError(
+                    "No timesteps within $(start_year):$(end_year) found in $(dhw_file)"
+                )
+            )
+        end
+
+        # Index by dimension name so layout changes in the source file are tolerated
+        selection = Dict(
+            "timesteps" => year_idx, "locs" => loc_idx, "scenarios" => scenario
         )
-    )
-    return historic_dhw
+        return vec(dhw_scens[getindex.(Ref(selection), NCDatasets.dimnames(dhw_scens))...])
+    end
 end
 
 """
@@ -206,7 +227,7 @@ Create objective function for calibration optimization.
 """
 function create_objective_function(
     reef_state::ReefState,
-    env_conditions::YAXArray,
+    env_conditions::AbstractDimArray,
     historic_obs::Vector{Float64},
     sim_indices::Vector{Int},
     ref_indices::Vector{Int},
@@ -338,7 +359,7 @@ base; thread `i` (0-indexed) receives `seed + i`.
 """
 function create_objective_pool(
     reef_state::ReefState,
-    env_conditions::YAXArray,
+    env_conditions::AbstractDimArray,
     historic_obs::Vector{Float64},
     sim_indices::Vector{Int},
     ref_indices::Vector{Int},
@@ -736,7 +757,7 @@ end
 
 function plot_calibration_results(
     reef_state::ReefState,
-    env_conditions::YAXArray,
+    env_conditions::AbstractDimArray,
     reef_obs::DataFrame,
     c_sim_indices::Vector{Int},
     c_ref_indices::Vector{Int},
