@@ -168,9 +168,12 @@ let
     global ts_bbox = _expand(ts_bbox)
 end
 
-# ── Overview extent (full GBR + Torres Strait) ────────────────────────────────
-GBR_LON = (142.0, 155.0)
-GBR_LAT = (-25.5, -9.5)
+# ── Overview extent (northern GBR + Torres Strait) ────────────────────────────
+# Bounded to the latitudes/longitudes spanned by the two study regions plus a
+# margin of context (Cape York to just south of Townsville); the southern GBR
+# and Coral Sea carry no study reefs.
+GBR_LON = (141.5, 150.0)
+GBR_LAT = (-20.0, -9.0)
 gbr_bbox = (lon_min=GBR_LON[1], lon_max=GBR_LON[2], lat_min=GBR_LAT[1], lat_max=GBR_LAT[2])
 
 # ── Shared styling constants ──────────────────────────────────────────────────
@@ -384,7 +387,7 @@ fig1 = Figure(; size=(1050, 900))
 
 ax1_ov = Axis(
     fig1[1:2, 1];
-    title="Study Context: Great Barrier Reef",
+    title="Study Context: Northern GBR and Torres Strait",
     xlabel="Longitude", ylabel="Latitude",
     titlesize=18, xlabelsize=18, ylabelsize=18,
     aspect=DataAspect(),
