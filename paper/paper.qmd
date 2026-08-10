@@ -18,13 +18,10 @@ abstract: |
   ecosystem outcomes whilst being computationally tractable. This work presents a systematic workflow
   wherein distribution-based sensitivity analysis guides structural model decisions. Applied to Great
   Barrier Reef demographic data, colony diameter and morpho-taxa group emerged as principal drivers of
-  growth and survival. These findings informed Kora, an empirically bounded size-structured population
+  growth and survival. These findings informed development of Kora, an empirically bounded size-structured population
   model tracking five functional groups with empirically parameterized growth and mortality. Ensemble
   calibration for two reefs shows the model reproduces observed coral cover trajectories at the modelled
-  scales. Where multiple parameter sets reproduced observed trajectories equally well,
-  the ambiguity was consistent, with larger assumed proportions of a functional group tending to be
-  offset by smaller assumed colony sizes. The ensemble-based approach offers a principled basis for
-  model-informed decision support where monitoring data is sparse, and scenario uncertainty is deep.
+  spatial scales. The ensemble-based approach offers a principled basis for model-informed decision support where monitoring data is sparse, and scenario uncertainty is deep.
 
 keywords:
   - coral reefs
@@ -93,7 +90,7 @@ exploring a wide range of plausible futures rather than optimizing
 against a single projected outcome. Computational tractability of models
 underpinning decision support is therefore a core design requirement:
 the model must be able to evaluate thousands of scenarios at low cost to
-support policy development [cf. @arnoldAdhocModellingStrategic2020].
+inform development of effective policies [cf. @arnoldAdhocModellingStrategic2020].
 
 A persistent challenge is determining appropriate model structure.
 Models must capture the dynamics relevant to a given purpose while
@@ -116,11 +113,12 @@ The workflow is demonstrated using demographic data from the EcoRRAP
 monitoring program (Ecological Intelligence for Reef Restoration and
 Adaptation Program; @australianinstituteofmarinescienceEcologicalIntelligenceReef2025), which
 has generated colony-level observations via orthorectified photomosaics
-across the Great Barrier Reef (GBR). PAWN sensitivity analysis (Pianosi
-and Wagener, 2018, 2015) is applied to these data to discern key factors
-that drive annualized growth and survival across five dominant
-functional groups of hard coral (i.e., tabular *Acropora* spp.). These
-findings directly shape the structure of Kora, a size-structured
+across the Great Barrier Reef (GBR). A moment-independent global sensitivity
+analysis method (Pianosi and Wagener, 2018, 2015) is applied to these data to
+discern key factors that drive annualized growth and survival across five dominant
+functional groups of hard coral, including tabular *Acropora*, corymbose *Acropora*,
+branching non-*Acropora*, Small massives (and encrusting), and Large massives.
+These findings directly shape the structure of Kora, a size-structured
 population model operating on discrete annual timesteps. Growth and
 mortality functions are parameterized separate per functional group via
 polynomial regression on field observations. Sub-second simulation
@@ -138,28 +136,23 @@ intervention strategy evaluation are addressed in future work.
 
 # Model development workflow
 
-The intended purpose of the model is to provide a computationally
-efficient and parsimonious representation of multiple coral functional
-groups. The intent is to obtain indicative projections of coral dynamics
-under ambient and disturbed conditions. Parsimony is achieved by
-identifying factors that represent the dynamics of dominant coral
-functional groups and their respective contributions to overall coral
-cover, as evidenced by available data. To this end, empirical
-sensitivity analysis was conducted on data from the Ecological
-Intelligence for Reef Restoration and Adaptation Program (EcoRRAP;
-@australianinstituteofmarinescienceEcologicalIntelligenceReef2025) to identify principal
-drivers of growth and survival dynamics. The assessment informed model
-structure and constraining equifinality and issues of parameter
-identifiability.
+The overarching aim of the model is to provide indicative projections of coral dynamics under
+ambient and disturbed conditions (principally marine heatwaves). Parsimony is achieved by
+identifying factors that represent the dynamics of dominant coral functional groups and their
+respective contributions to overall coral cover, as evidenced by available data. To this end,
+empirical sensitivity analysis was conducted on data from the Ecological Intelligence for Reef
+Restoration and Adaptation Program (EcoRRAP; @australianinstituteofmarinescienceEcologicalIntelligenceReef2025)
+to identify principal drivers of growth and survival dynamics. The assessment informed model
+structure and constraining equifinality and issues of parameter identifiability.
 
 Equifinality refers to the case where multiple parameter combinations
 produce similar, equally plausible outcomes. Identifiability is the
 ability to attribute cause and effect to any single parameter or a
-unique parameter set [@guillaumeIntroductoryOverviewIdentifiability2019; @luoParameterIdentifiabilityConstraint2009]. In
-high-dimensional cases (e.g., models with many parameters), factors can
+unique parameter set [@guillaumeIntroductoryOverviewIdentifiability2019; @luoParameterIdentifiabilityConstraint2009].
+In high-dimensional cases (e.g., models with many parameters), factors can
 interact, with parameter combinations effectively compensating for one
 another, making it difficult to determine which factors genuinely
-influence modelled outcomes. Interaction and compensation degrade both
+influence modelled outcomes. Factor interaction and compensation degrade both
 model interpretability and predictive reliability, hence the common
 advice to retain as much simplicity as possible with respect to the
 model purpose [@jakemanTenIterativeSteps2006; @majonePitfallsAnalysis1980].
@@ -168,10 +161,9 @@ substantially increase model dimensionality, leading to identifiability
 issues and inflated computational cost inconsistent with the goal of
 supporting timely model-informed decision making.
 
-The scope here is restricted to assessing model performance against
-available observations of coral cover and functional composition. Two
-reefs are used for this purpose: Moore Reef (in the GBR Offshore North),
-which has a long monitoring history enabling calibration against
+Model performance is assessed against available observations of coral cover
+and functional composition. Two reefs are used for this purpose:
+Moore Reef (in the GBR Offshore North), which has a long monitoring history enabling calibration against
 historical cover dynamics, and Masig Reef (Torres Strait), representing
 a data-limited setting with differing community compositions. The
 location of the reefs in question is indicated in [Figure
@@ -184,7 +176,7 @@ orange star). Panel C: Close up of the Offshore North region and study
 reefs (Moore Reef marked with a blue
 star).](../figs/study_area_overview.png){width="6.067281277340332in" height="5.2in"}
 
-The EcoRRAP monitoring program has generated colony-level demographic
+The EcoRRAP monitoring program has collected colony-level demographic
 observations across the study area (GBR and Torres Straits) via
 orthorectified photomosaics since 2021 [@gordonFieldPhotogrammetry4D2023; @toorFieldPhotogrammetry4D2025].
 Each photomosaic campaign produces spatially and temporally
@@ -203,8 +195,9 @@ interval of 320 days (SD: 88 days; range: 118–772 days). For the Torres Strait
 Dungeness, and Masig Reefs were collected over April 2021 to March 2023, spanning
 up to 31 taxa (29 for growth, 31 for survival)
 across four habitat types (reef back, flank, front, and lagoon),
-comprising 2,863 growth observations and 5,839 survival observations
-across 78 quadrats grouped into 10 monitoring sites, with a mean survey
+comprising 2,863 growth observations across 78 quadrats and 5,839
+survival observations across 84 quadrats, grouped into 10 monitoring
+sites, with a mean survey
 interval of 336 days (SD: 6 days; range: 323–357 days). Interested readers are
 directed to the relevant Standard Operating Procedures for further
 details on the data collection (Gordon et al. 2023), processing of
@@ -217,8 +210,8 @@ An overview of the 12 factors assessed is provided in [Table
 1](#_Ref226801182). Raw transitions between successive observations were
 standardized to annual rates via Euler approximation (see Section
 [3.2.1](#growth-models)), accounting for the variable interval between
-surveys. Of the 12 factors, five relate to the spatial location of
-monitoring activities (plot, long, lat, site, reef; see [Table
+surveys. Of the 12 factors, three relate to the spatial location of
+monitoring activities (quadrat/plot identity, long, lat; see [Table
 1](#_Ref226801182)) but were retained for completeness, as they
 represent different spatial scales.
 
@@ -248,6 +241,9 @@ where applicable, or over all observations for continuous covariates.
 N/A indicates a factor was not available for that region.
 \*\* Factor is site-invariant within the region (single unique value)
 and therefore contributes near-zero PAWN sensitivity.
+The Offshore North `quadrat_number` count (41 unique quadrat labels)
+differs from the 43 plots reported above, which additionally distinguish
+plots by depth stratum.
 
 {{< include ../data/logger_report/paper_table1_dataset_overview.md >}}
 
@@ -347,8 +343,11 @@ though less so than colony diameter.
 Colony diameter screened in as an influential factor for survival across both regions ([Figure 3](#_Ref219542540)A, B). In the Offshore North, depth and the temporally aggregated eReefs temperature also screened above the dummy threshold; however, reef-level analysis at Moore Reef ([Figure 3](#_Ref219542540)C) shows both eReefs temperature metrics (averaged mean and maximum) at or near the dummy threshold when Moore is examined in isolation. This is consistent with the regional temperature acting as a spatial proxy for between-reef differences (Moore vs. Lizard Reefs have distinct mean thermal environments) rather than reflecting a direct thermal effect on colony survival. This interpretation is further supported by the study window spanning non-disturbance years (2021--2023), during which ambient temperature variation would not be expected to discriminate colony-level outcomes. Binned analysis reveals the influence of locational differences on survival remain consistent across diameter classes in the Offshore North ([SFigure 2](#_Ref226823311)), whereas taxa and functional group identity were more prominent secondary contributors in the Torres Strait. These findings are perhaps to be expected given the Offshore North is represented by sites across Moore and Lizard Reefs (two large reefs) with greater variation in environmental conditions compared to the Torres Strait region (represented by three much smaller reefs).
 
 Comparing results at the reef level, diameter and taxon were closely competitive in influencing survival on Moore Reef ([Figure 3](#_Ref219542540)C), with no single factor as clearly dominant as diameter is for growth. Functional group and depth emerged as secondary contributors. In comparison, diameter plays a greater role towards survival on Masig Reef ([Figure 3](#_Ref219542540)D), with functional group and taxon as secondary factors. Wave and tidal forcings
-("bottom_stress") and temperature exerted less influence on survival and
-growth across the examined regions and reefs. The sensitivity index
+("bottom_stress") exerted negligible influence on survival and growth
+across all examined regions and reefs, as did temperature at every scale
+except regional Offshore North survival, where — as noted above — it acts
+as a proxy for between-reef differences rather than a direct thermal
+signal. The sensitivity index
 characterizes what a given dataset can resolve at the scales examined
 and does not indicate what is ecologically meaningful. The low influence
 of wave and tidal forcing and temperature is therefore a statement about
@@ -361,9 +360,13 @@ identified as dominant because their influence is resolvable in these
 data, not strictly because the excluded factors are absent from the
 system.
 
-Interestingly, growth and survival are shown to be insensitive to
-habitat type at reef level for both regions ([Figure 2](#_Ref219542531)
-and [SFigure 1](#_Ref226823031)). One potential interpretation is that
+Interestingly, growth and survival are shown to be largely insensitive to
+habitat type at reef level for both regions ([Figure 2](#_Ref219542531)C, D
+and [Figure 3](#_Ref219542540)C, D): habitat falls below the dummy
+threshold at Masig Reef and, while marginally above it at Moore Reef,
+remains far below colony diameter and taxonomic identity. The same holds
+across diameter classes at the regional scale ([SFigure
+1](#_Ref226823031)). One potential interpretation is that
 corals observed in monitoring surveys represent a habitat-filtered
 subset of the original settling population: individuals that failed to
 establish in each habitat having been removed prior to observation. In
@@ -405,7 +408,7 @@ survival across the spatial areas of interest from the GBR Offshore
 North (Panel A), Torres Strait (Panel B), and the specific reefs in both
 regions (Moore Reef and Masig Reef; Panel C and D respectively). The
 mean and standard deviation PAWN indices are shown, sorted by mean value
-(highest to lowest; from left to right). Colony diameter screened in as an influential factor for survival across both regions. In the Offshore North, depth also screened above the dummy threshold as a secondary contributor; the regional eReefs temperature index screened above the threshold regionally but was at or below it at the reef level (Panel C), consistent with a between-reef spatial effect rather than a direct thermal signal. Diameter and taxon were closely competitive on Moore Reef (Panel C), with functional group as a secondary contributor. Diameter and taxa/functional group are consistently relevant for the Torres Strait, represented by smaller reefs.](../figs/sensitivity/combined/SA_survival.png){width="5.239583333333333in"
+(highest to lowest; from left to right). Colony diameter screened in as an influential factor for survival across both regions. In the Offshore North, the regional eReefs temperature indices and depth also screened above the dummy threshold as secondary contributors; the temperature indices fell to at or near the threshold at the reef level (Panel C), consistent with a between-reef spatial effect rather than a direct thermal signal. Diameter and taxon were closely competitive on Moore Reef (Panel C), with functional group as a secondary contributor. Diameter and taxa/functional group are consistently relevant for the Torres Strait, represented by smaller reefs.](../figs/sensitivity/combined/SA_survival.png){width="5.239583333333333in"
 height="7.495179352580927in"}
 
 # Model description
@@ -2585,21 +2588,21 @@ North)
   ----------------------------------------------------------------
   **Group**            **Model**
   -------------------- -------------------------------------------
-  tabular *Acropora*   0.366365 + 0.297959\*$\ln(d_{t})$ -
-                       0.0468238\*$\ln\left( d_{t} \right)^{2}$
+  tabular *Acropora*   0.366364 + 0.297959\*$\ln(d_{t})$ -
+                       0.0468239\*$\ln\left( d_{t} \right)^{2}$
 
-  corymbose *Acropora* 0.273268 + 0.455068\*$\ln(d_{t})$ -
-                       0.0922317\*$\ln\left( d_{t} \right)^{2}$
+  corymbose *Acropora* 0.273274 + 0.455063\*$\ln(d_{t})$ -
+                       0.092231\*$\ln\left( d_{t} \right)^{2}$
 
-  corymbose            0.5472 + 0.193287\*$\ln(d_{t})$ -
-  non-*Acropora*       0.0215027\*$\ln\left( d_{t} \right)^{2}$
+  corymbose            0.547199 + 0.193289\*$\ln(d_{t})$ -
+  non-*Acropora*       0.0215031\*$\ln\left( d_{t} \right)^{2}$
 
-  Small Massives       0.708587 + 0.128052\*$\ln(d_{t})$ -
-                       0.013171\*$\ln\left( d_{t} \right)^{2}$
+  Small Massives       0.708588 + 0.128051\*$\ln(d_{t})$ -
+                       0.0131708\*$\ln\left( d_{t} \right)^{2}$
 
 
-  Large Massives       0.57668 + 0.204889\*$\ln(d_{t})$ -
-                       0.0247535\*$\ln\left( d_{t} \right)^{2}$
+  Large Massives       0.576681 + 0.204889\*$\ln(d_{t})$ -
+                       0.0247534\*$\ln\left( d_{t} \right)^{2}$
   ----------------------------------------------------------------
 
 
@@ -2660,7 +2663,7 @@ indicating positive/negative correlation
   Small Massives       0.047    0.059     0.565    0.632       0.752       0.877        0.668        0.934       0.498       0.804
 
 
-  Large Massives       0.036    0.051     0.759    0.395       0.871       0.862        0.929        0.909       0.795       0.772
+  Large Massives       0.036    0.051     0.759    0.396       0.871       0.862        0.929        0.909       0.795       0.772
   --------------------------------------------------------------------------------------------------------------------------------
 
 
