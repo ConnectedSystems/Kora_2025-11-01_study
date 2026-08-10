@@ -12,7 +12,9 @@ Reads:
   data/torres_strait/overall/torres_strait_growth.csv
   data/torres_strait/overall/torres_strait_survival.csv
 
-Output: data/logger_report/paper_dataset_summary.md
+Outputs:
+  data/logger_report/paper_dataset_summary.md          — full diagnostic summary
+  data/logger_report/paper_table1_dataset_overview.md  — Table 1 body, included by paper.qmd
 """
 
 using CSV
@@ -24,6 +26,7 @@ include(joinpath(@__DIR__, "common.jl"))
 let
 
 REPORT_FILE = joinpath(OUTPUT_DIR, "logger_report", "paper_dataset_summary.md")
+TABLE1_FILE = joinpath(OUTPUT_DIR, "logger_report", "paper_table1_dataset_overview.md")
 
 # ─── Load pipeline output CSVs ────────────────────────────────────────────────
 
@@ -62,15 +65,15 @@ function interval_stats(df::DataFrame)
     )
 end
 
-"""Unique (reef × habitat_area) combinations — the paper's 'monitoring sites'."""
-n_sites(df) = nrow(unique(df[:, [:reef, :site_code, :habitat_area]]))
+"""Unique (reef × habitat) combinations — the paper's 'monitoring sites'."""
+n_sites(df) = nrow(unique(df[:, [:reef, :site_code, :habitat]]))
 
-"""Unique (reef × habitat_area × depth_cat × plot) combinations — the paper's 'plots'."""
-n_plots(df) = nrow(unique(df[:, [:reef, :site_code, :habitat_area, :depth_cat, :plot]]))
+"""Unique (reef × habitat × depth_cat × plot) combinations — the paper's 'plots'."""
+n_plots(df) = nrow(unique(df[:, [:reef, :site_code, :habitat, :depth_cat, :plot]]))
 
-hab_zones(df) = sort(unique(map(h -> h[1:2], unique(skipmissing(df.habitat_area)))))
+hab_zones(df) = sort(unique(skipmissing(df.habitat)))
 
-ZONE_LABEL = Dict("BA" => "back", "FL" => "flank", "FR" => "front", "LA" => "lagoon")
+ZONE_LABEL = Dict("back" => "back", "flank" => "flank", "front" => "front", "lagoon" => "lagoon")
 
 function zone_list(df)
     zones = hab_zones(df)
@@ -206,7 +209,7 @@ function _site_stat(df, site_col, val_col)
 end
 
 function _hab_str(df)
-    codes = sort(unique(skipmissing(df.habitat_area)))
+    codes = sort(unique(skipmissing(df.habitat)))
     return "$(length(codes)) ($(join(codes, "; ")))"
 end
 
@@ -229,8 +232,8 @@ ts_quad_n  = _nu(ts_g, :quadrat_number)
 # (`depth_min_mean`, available at Masig Reef only). Categorical `depth_cat` is not used here.
 function _depth_stat(g, s, depth_col::Symbol)
     rows = unique(vcat(
-        dropmissing(g[:, [:site_code, :habitat_area, depth_col]]),
-        dropmissing(s[:, [:site_code, :habitat_area, depth_col]])
+        dropmissing(g[:, [:site_code, :habitat, depth_col]]),
+        dropmissing(s[:, [:site_code, :habitat, depth_col]])
     ))
     return _fmt_cr(rows[!, depth_col])
 end
@@ -286,7 +289,7 @@ println(io, """
 | `plot` / `quadrat` | Specific monitored plot (ON) or quadrat (TS) | $(on_plot_n) | $(ts_quad_n) |
 | `depth` | Continuous depth (m): ON uses plot-level survey depth (`depth_cont`) from IPM photogrammetry file; TS uses logger mean depth (`depth_min_mean`) from EcoRRAP in-situ loggers (Masig Reef only) | $(on_depth_str) | $(ts_depth_str) |
 | `temp` | Mean of daily temperature (°C) from EcoRRAP in-situ loggers; daily-max mean for ON, daily mean for TS | $(on_temp_str) | $(ts_temp_str) |
-| `habitat` | Reef habitat zone code (`habitat_area`) | $(on_hab_str) | $(ts_hab_str) |
+| `habitat` | Reef habitat zone code (`habitat`) | $(on_hab_str) | $(ts_hab_str) |
 | `lon` | Longitude (decimal degrees) | $(on_lon_str) | $(ts_lon_str) |
 | `lat` | Latitude (decimal degrees) | $(on_lat_str) | $(ts_lat_str) |
 | `site` | Reef-level site code | $(on_site_n) | $(ts_site_n) |
@@ -296,10 +299,154 @@ println(io, """
 | `colony_id` | Individual coral identifier | $(on_cid) | Growth: $(ts_cid_g)<br>Survival: $(ts_cid_s) |
 """)
 
+# ─── Table 1 (paper.qmd include) ──────────────────────────────────────────────
+#
+# Body of "Table 1. Overview of factors assessed in the sensitivity analysis".
+# The 12 rows must stay in one-to-one correspondence with the factors surviving
+# `growth_ignore_cols` / `surv_ignore_cols` in common.jl — if a factor is added to
+# or removed from the SA, this list changes with it.
+#
+# Cell convention (mirrors the table caption):
+#   - `diam`/`diam_mort`: observation count and range over all observations.
+#   - `taxa`: unique count, reported separately for growth and survival.
+#   - everything else: unique-value count over the growth dataset, with the range
+#     across those unique values where the factor is continuous.
+#   - a factor with no non-missing values in a region is reported as N/A.
+#   - `**` marks a factor that is site-invariant within the region (one unique
+#     value) and therefore contributes near-zero PAWN sensitivity.
+
+_present(df, c) = string(c) in names(df) && !isempty(collect(skipmissing(df[!, c])))
+_uvals(df, c)   = unique(collect(skipmissing(df[!, c])))
+
+"""Unique-value count, plus [min – max] across those values for continuous factors."""
+function t1_unique(df::DataFrame, c::Symbol; with_range::Bool=true)
+    _present(df, c) || return ("N/A", false)
+    v = _uvals(df, c)
+    invariant = length(v) == 1
+    with_range || return ("$(length(v))", invariant)
+    lo = round(minimum(v); digits=2)
+    hi = round(maximum(v); digits=2)
+    return ("$(length(v)) / [$(lo) – $(hi)]", invariant)
+end
+
+"""Observation count plus value range, for the diameter columns."""
+function t1_obs(df::DataFrame, c::Symbol)
+    _present(df, c) || return "N/A"
+    v = collect(skipmissing(df[!, c]))
+    return "$(length(v)) / [$(round(minimum(v); digits=2)) – $(round(maximum(v); digits=2))]"
+end
+
+"""Zone count with human-readable labels, e.g. `4 (back; flank; front; lagoon)`."""
+function t1_habitat(df::DataFrame)
+    _present(df, :habitat) || return "N/A"
+    z = sort(_uvals(df, :habitat))
+    return "$(length(z)) ($(join(z, "; ")))"
+end
+
+# Rows that report a single value shared by both growth and survival are computed
+# from the growth dataset; the diameter and taxa rows report both explicitly.
+struct T1Row
+    id::String
+    description::String
+    source::String
+    on::String
+    ts::String
+end
+
+"""Build one row, appending the site-invariance marker to the description if earned."""
+function t1_row(id, desc, source, (on_cell, on_inv), (ts_cell, ts_inv))
+    marker = (on_inv || ts_inv) ? " **" : ""
+    return T1Row(id, desc * marker, source, on_cell, ts_cell)
+end
+
+table1_rows = T1Row[
+    T1Row(
+        "`diam` / `diam_mort`",
+        "Estimated coral diameter at observation (cm): `diam` for growth obs., " *
+        "`diam_mort` for mortality obs.",
+        "EcoRRAP photogrammetry colony tracking",
+        "Growth: $(t1_obs(on_g, :diam))<br>Survival: $(t1_obs(on_s, :diam_mort))",
+        "Growth: $(t1_obs(ts_g, :diam))<br>Survival: $(t1_obs(ts_s, :diam_mort))",
+    ),
+    T1Row(
+        "`taxa`",
+        "Individual taxonomic group",
+        "EcoRRAP taxonomic colony labels",
+        "Growth: $(taxa_n(on_g))<br>Survival: $(taxa_n(on_s))",
+        "Growth: $(taxa_n(ts_g))<br>Survival: $(taxa_n(ts_s))",
+    ),
+    t1_row(
+        "`functional_group`", "Morphological grouping of taxa",
+        "Kora group mapping from taxa",
+        t1_unique(on_g, :functional_group; with_range=false),
+        t1_unique(ts_g, :functional_group; with_range=false),
+    ),
+    T1Row(
+        "`habitat`", "Reef habitat zone code",
+        "EcoRRAP site/habitat annotations",
+        t1_habitat(on_g), t1_habitat(ts_g),
+    ),
+    t1_row(
+        "`quadrat_number`", "Monitored plot (ON) or quadrat (TS) identifier",
+        "EcoRRAP monitoring design metadata",
+        t1_unique(on_g, :quadrat_number; with_range=false),
+        t1_unique(ts_g, :quadrat_number; with_range=false),
+    ),
+    t1_row(
+        "`depth_cont`", "Plot-level survey depth (m) from IPM photogrammetry",
+        "EcoRRAP IPM photogrammetry metadata",
+        t1_unique(on_g, :depth_cont), t1_unique(ts_g, :depth_cont),
+    ),
+    t1_row(
+        "`ereefs_temp_mean`",
+        "Mean of daily mean sea water temperature (°C) from eReefs GBR1 Hydro v2 " *
+        "(~1 km resolution) at −9 m depth",
+        "eReefs hydrodynamic model",
+        t1_unique(on_g, :ereefs_temp_mean), t1_unique(ts_g, :ereefs_temp_mean),
+    ),
+    t1_row(
+        "`ereefs_temp_max`",
+        "Mean of daily maximum sea water temperature (°C) from eReefs GBR1 Hydro v2 " *
+        "(~1 km resolution) at −9 m depth",
+        "eReefs hydrodynamic model",
+        t1_unique(on_g, :ereefs_temp_max), t1_unique(ts_g, :ereefs_temp_max),
+    ),
+    t1_row(
+        "`wave_ubed90`", "Wave-induced bottom current speed (m/s; 90th percentile)",
+        "eReefs hydrodynamic model",
+        t1_unique(on_g, :wave_ubed90), t1_unique(ts_g, :wave_ubed90),
+    ),
+    t1_row(
+        "`depth_bathy_m`", "Modelled bathymetric depth (m)",
+        "eReefs hydrodynamic model",
+        t1_unique(on_g, :depth_bathy_m), t1_unique(ts_g, :depth_bathy_m),
+    ),
+    t1_row(
+        "`lon`", "Longitude (decimal degrees)",
+        "EcoRRAP site geospatial metadata",
+        t1_unique(on_g, :lon), t1_unique(ts_g, :lon),
+    ),
+    t1_row(
+        "`lat`", "Latitude (decimal degrees)",
+        "EcoRRAP site geospatial metadata",
+        t1_unique(on_g, :lat), t1_unique(ts_g, :lat),
+    ),
+]
+
+t1 = IOBuffer()
+println(t1, "| Identifier | Description | Data source | Offshore North<br>Count / [Range] | Torres Strait<br>Count / [Range] |")
+println(t1, "|------------|-------------|-------------|-----------------------------------|----------------------------------|")
+for r in table1_rows
+    println(t1, "| $(r.id) | $(r.description) | $(r.source) | $(r.on) | $(r.ts) |")
+end
+
 # ─── Write to file ────────────────────────────────────────────────────────────
 
 mkpath(dirname(REPORT_FILE))
 write(REPORT_FILE, String(take!(io)))
 @info "Report written" file = REPORT_FILE
+
+write(TABLE1_FILE, String(take!(t1)))
+@info "Table 1 written" file = TABLE1_FILE n_factors = length(table1_rows)
 
 end # let
