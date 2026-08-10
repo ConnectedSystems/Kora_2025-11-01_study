@@ -36,6 +36,10 @@ keywords:
 filters:
   - kapsner/authors-block
   - br-to-linebreak.lua
+  # eq-number-format.lua must run after Quarto's own crossref filter, which is
+  # what appends the \qquad(N) equation number it rewrites. Without the explicit
+  # `quarto` marker, user filters run first and it sees an unnumbered equation.
+  - quarto
   - eq-number-format.lua
 
 date: last-modified
