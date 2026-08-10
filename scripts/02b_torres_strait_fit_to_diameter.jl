@@ -54,4 +54,12 @@ for reef in reefs
     export_model_summaries(
         survival_results.survival_fits, model_dir, "$(region)_$(tgt_dir)_survival"
     )
+
+    # Keep the exact data subset each model was fitted to
+    export_fit_data(
+        growth_results.growth_groupings, model_dir, "$(region)_$(tgt_dir)_growth"
+    )
+    export_fit_data(
+        survival_results.survival_groupings, model_dir, "$(region)_$(tgt_dir)_survival"
+    )
 end

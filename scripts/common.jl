@@ -258,6 +258,76 @@ function export_model_summaries(fits, output_dir::String, prefix::String)
     return CSV.write(joinpath(output_dir, "$(prefix)_coefficients.csv"), coeff_df)
 end
 
+const _PARQUET_TYPES = Union{Real,AbstractString,Date,DateTime}
+
+"""
+Coerce columns Parquet2 cannot represent (and all-`missing` columns) to strings.
+"""
+function _parquet_safe(df::DataFrame)::DataFrame
+    out = copy(df)
+    for n in names(out)
+        T = nonmissingtype(eltype(out[!, n]))
+        if T === Union{} || T === Any || !(T <: _PARQUET_TYPES)
+            out[!, n] = [ismissing(x) ? missing : string(x) for x in out[!, n]]
+        end
+    end
+
+    return out
+end
+
+"""
+    export_fit_data(groupings, output_dir, prefix)
+
+Save the exact data subset the models were fitted to, as
+`<prefix>_fitdata.parquet` and `<prefix>_fitdata.csv`.
+
+`groupings` is the `OrderedDict{String, DataFrame}` returned by
+`process_growth_models` / `process_survival_models`. Groups are stacked into a
+single table with a leading `functional_group` column holding the grouping key,
+so every row is traceable to the model it informed. The train/test split
+columns (`class_train`, `class_test`, `class_*_mean`, ...) are retained, as the
+fits cannot be reproduced without them.
+
+Three columns would otherwise state the same group: `Cscape_group` (set to the
+grouping key on every row by `collate_functional_groups`) and the dataset's own
+`functional_group` (an incomplete upstream copy -- populated for ~92% of rows,
+never in disagreement). Both are dropped in favour of the key itself, under the
+preferred name.
+"""
+function export_fit_data(groupings, output_dir::String, prefix::String)
+    mkpath(output_dir)
+
+    frames = DataFrame[]
+    for (grp, df) in groupings
+        isempty(df) && continue
+        sub = copy(df)
+
+        redundant = intersect(
+            [:functional_group, :Cscape_group, :cscape_group], propertynames(sub)
+        )
+        isempty(redundant) || select!(sub, Not(redundant))
+
+        insertcols!(sub, 1, :functional_group => fill(grp, nrow(sub)))
+        push!(frames, sub)
+    end
+
+    if isempty(frames)
+        @warn "No data to export for $(prefix)"
+        return nothing
+    end
+
+    combined = vcat(frames...; cols=:union)
+
+    csv_path = joinpath(output_dir, "$(prefix)_fitdata.csv")
+    CSV.write(csv_path, combined)
+
+    Parquet2.writefile(
+        joinpath(output_dir, "$(prefix)_fitdata.parquet"), _parquet_safe(combined)
+    )
+
+    return csv_path
+end
+
 include(joinpath(@__DIR__, "..", "src", "sensitivity.jl"))
 include(joinpath(@__DIR__, "..", "src", "parameter_assessment.jl"))
 include(joinpath(@__DIR__, "..", "src", "calibration_structs.jl"))
