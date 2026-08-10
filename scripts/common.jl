@@ -37,6 +37,12 @@ surv_ignore_cols = [
     :acro_table_cover, :acro_corym_cover, :corym_non_acro_cover,
     :small_massive_cover, :large_massive_cover, :total_coral_cover,
     :est_1yo_growth, :growth_rate,
+    # Response-derived (and duplicate) columns carried by the pipeline CSVs under the
+    # `*_cm` naming. `diam_t2_cm` *is* the growth response and the rest are functions
+    # of it, so retaining them leaks the outcome into the sensitivity analysis;
+    # `diam_t1_cm` duplicates `diam`/`diam_mort`.
+    :diam_t1_cm, :diam_t2_cm, :area_growth_sqcm, :lin_ext_cm, :growth_rate_cm_yr,
+    :est_1yr_diam_cm,
     :n_days_temp, :date_t1, :date_t2, :ereefs_temp_date, :psal_mean_mean, :psal_mean_median,
     :n_days_psal, :cspd_mean_mean, :cspd_mean_median, :n_days_cspd, :wave_hs_mean,
     :wave_hs_median,
@@ -60,6 +66,9 @@ growth_ignore_cols = [
     :acro_table_cover, :acro_corym_cover, :corym_non_acro_cover,
     :small_massive_cover, :large_massive_cover, :total_coral_cover,
     :est_1yo_growth, :growth_rate,
+    # Response-derived (and duplicate) columns — see note on surv_ignore_cols above.
+    :diam_t1_cm, :diam_t2_cm, :area_growth_sqcm, :lin_ext_cm, :growth_rate_cm_yr,
+    :est_1yr_diam_cm,
     :n_days_temp, :date_t1, :date_t2, :ereefs_temp_date, :psal_mean_mean, :psal_mean_median,
     :n_days_psal, :cspd_mean_mean, :cspd_mean_median, :n_days_cspd, :wave_hs_mean,
     :wave_hs_median,
