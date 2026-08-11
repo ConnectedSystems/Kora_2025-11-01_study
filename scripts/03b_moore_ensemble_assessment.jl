@@ -8,7 +8,7 @@ reef_id = "16071S"
 ensemble_dir = joinpath(OUTPUT_DIR, "ensemble", "offshore_north", "moore")
 
 ensemble_output = deserialize(joinpath(ensemble_dir, "$(reef_id)_ensemble_output.dat"));
-moore_ensemble = deserialize(joinpath(ensemble_dir, "$(reef_id)_tracked_candidates.dat"));
+moore_ensemble = load_result(joinpath(ensemble_dir, "$(reef_id)_tracked_candidates.h5"));
 ensemble_params = hcat(moore_ensemble.candidates...);
 
 corr_df = parameter_correlation_analysis(
@@ -22,13 +22,13 @@ ensemble_data_dir = joinpath(OUTPUT_DIR, "sensitivity", "offshore_north", "moore
 mkpath(ensemble_data_dir)
 
 fn_unconstrained_samples = joinpath(
-    ensemble_data_dir, "$(reef_id)_unconstrained_samples.dat"
+    ensemble_data_dir, "$(reef_id)_unconstrained_samples.h5"
 )
 fn_unconstrained_fitness = joinpath(
-    ensemble_data_dir, "$(reef_id)_unconstrained_fitness.dat"
+    ensemble_data_dir, "$(reef_id)_unconstrained_fitness.h5"
 )
 fn_unconstrained_pawn = joinpath(
-    ensemble_data_dir, "$(reef_id)_unconstrained_pawn_results.dat"
+    ensemble_data_dir, "$(reef_id)_unconstrained_pawn_results.h5"
 )
 
 ensemble_fig_dir = joinpath(FIG_DIR, "sensitivity", "offshore_north", "moore", "ensemble")
@@ -100,7 +100,7 @@ if !isfile(fn_unconstrained_samples)
         Distributions.quantile.(unif_dists[[1, 7:23...]], unc_samples[:, free_vary_cols]')'
     )
 
-    serialize(fn_unconstrained_samples, unc_samples)
+    save_result(fn_unconstrained_samples, unc_samples)
 
     @info "Running unconstrained sample ($(n_threads) threads)"
     unc_fitness_scores = Vector{Float64}(undef, size(unc_samples, 1))
@@ -108,10 +108,10 @@ if !isfile(fn_unconstrained_samples)
         unc_fitness_scores[i] = runner_pool[Threads.threadid()](collect(unc_samples[i, :]))
     end
 
-    serialize(fn_unconstrained_fitness, unc_fitness_scores)
+    save_result(fn_unconstrained_fitness, unc_fitness_scores)
 
     unc_pawn_sa_results = pawn(unc_samples, unc_fitness_scores, ENSEMBLE_PARAM_NAMES)
-    serialize(fn_unconstrained_pawn, unc_pawn_sa_results)
+    save_result(fn_unconstrained_pawn, unc_pawn_sa_results)
 
     f = plot_pawn_heatmap(
         unc_pawn_sa_results, "Unconstrained SA - $(reef_id)";
@@ -119,19 +119,19 @@ if !isfile(fn_unconstrained_samples)
     )
     save(joinpath(ensemble_fig_dir, "$(reef_id)_unconstrained_sa.png"), f; px_per_unit=DPI)
 else
-    unc_samples = deserialize(fn_unconstrained_samples)
-    unc_fitness_scores = deserialize(fn_unconstrained_fitness)
-    unc_pawn_sa_results = deserialize(fn_unconstrained_pawn)
+    unc_samples = load_result(fn_unconstrained_samples)
+    unc_fitness_scores = load_result(fn_unconstrained_fitness)
+    unc_pawn_sa_results = load_result(fn_unconstrained_pawn)
 end
 
 # ── Constrained sensitivity analysis ─────────────────────────────────────────
 fn_constrained_samples = joinpath(
-    ensemble_data_dir, "$(reef_id)_constrained_samples.dat"
+    ensemble_data_dir, "$(reef_id)_constrained_samples.h5"
 )
 fn_constrained_fitness = joinpath(
-    ensemble_data_dir, "$(reef_id)_constrained_fitness.dat"
+    ensemble_data_dir, "$(reef_id)_constrained_fitness.h5"
 )
-fn_constrained_pawn = joinpath(ensemble_data_dir, "$(reef_id)_constrained_pawn_results.dat")
+fn_constrained_pawn = joinpath(ensemble_data_dir, "$(reef_id)_constrained_pawn_results.h5")
 
 if !isfile(fn_constrained_samples)
     param_bounds = extrema.(eachrow(ensemble_params))
@@ -147,7 +147,7 @@ if !isfile(fn_constrained_samples)
     cons_samples[:, free_vary_cols] = Matrix(
         Distributions.quantile.(unif_dists[[1, 7:23...]], cons_samples[:, free_vary_cols]')'
     )
-    serialize(fn_constrained_samples, cons_samples)
+    save_result(fn_constrained_samples, cons_samples)
 
     @info "Running ensemble-constrained sample ($(n_threads) threads)"
     cons_fitness_scores = Vector{Float64}(undef, size(cons_samples, 1))
@@ -157,10 +157,10 @@ if !isfile(fn_constrained_samples)
         )
     end
 
-    serialize(fn_constrained_fitness, cons_fitness_scores)
+    save_result(fn_constrained_fitness, cons_fitness_scores)
 
     cons_pawn_sa_results = pawn(cons_samples, cons_fitness_scores, ENSEMBLE_PARAM_NAMES)
-    serialize(fn_constrained_pawn, cons_pawn_sa_results)
+    save_result(fn_constrained_pawn, cons_pawn_sa_results)
 
     f = plot_pawn_heatmap(
         cons_pawn_sa_results, "Constrained SA - $(reef_id)";
@@ -168,9 +168,9 @@ if !isfile(fn_constrained_samples)
     )
     save(joinpath(ensemble_fig_dir, "$(reef_id)_constrained_sa.png"), f; px_per_unit=DPI)
 else
-    cons_samples = deserialize(fn_constrained_samples)
-    cons_fitness_scores = deserialize(fn_constrained_fitness)
-    cons_pawn_sa_results = deserialize(fn_constrained_pawn)
+    cons_samples = load_result(fn_constrained_samples)
+    cons_fitness_scores = load_result(fn_constrained_fitness)
+    cons_pawn_sa_results = load_result(fn_constrained_pawn)
 end
 
 # ── Export PAWN results as CSV ────────────────────────────────────────────────
@@ -424,8 +424,8 @@ function create_timeseries_function(
 end
 
 # ── Output paths ──────────────────────────────────────────────────────────────
-fn_temporal_ts = joinpath(ensemble_data_dir, "$(reef_id)_temporal_ts_outputs.dat")
-fn_temporal_pawn = joinpath(ensemble_data_dir, "$(reef_id)_temporal_pawn_results.dat")
+fn_temporal_ts = joinpath(ensemble_data_dir, "$(reef_id)_temporal_ts_outputs.h5")
+fn_temporal_pawn = joinpath(ensemble_data_dir, "$(reef_id)_temporal_pawn_results.h5")
 
 # ── Recover per-timestep trajectories ─────────────────────────────────────────
 if !isfile(fn_temporal_ts)
@@ -468,9 +468,9 @@ if !isfile(fn_temporal_ts)
         end
     end
 
-    serialize(fn_temporal_ts, ts_outputs)
+    save_result(fn_temporal_ts, ts_outputs)
 else
-    ts_outputs = deserialize(fn_temporal_ts)
+    ts_outputs = load_result(fn_temporal_ts)
 end
 
 n_sim_steps = size(ts_outputs, 2)
@@ -489,9 +489,9 @@ if !isfile(fn_temporal_pawn)
         temporal_pawn[:, t] = pawn_t[PAWNᵢ=At(:mean)].data
     end
 
-    serialize(fn_temporal_pawn, temporal_pawn)
+    save_result(fn_temporal_pawn, temporal_pawn)
 else
-    temporal_pawn = deserialize(fn_temporal_pawn)
+    temporal_pawn = load_result(fn_temporal_pawn)
 end
 
 # decimal_years = [Year(d).value + (Month(d).value - 1) / 12 for d in sim_year_range]
@@ -584,7 +584,7 @@ save(
 # heatmap per group, enabling attribution of transient sensitivity to specific
 # coral types (e.g. bleaching-sensitive Acropora vs. robust encrusting forms).
 fn_temporal_ts_bygroup = joinpath(
-    ensemble_data_dir, "$(reef_id)_temporal_ts_outputs_bygroup.dat"
+    ensemble_data_dir, "$(reef_id)_temporal_ts_outputs_bygroup.h5"
 )
 
 if !isfile(fn_temporal_ts_bygroup)
@@ -601,9 +601,9 @@ if !isfile(fn_temporal_ts_bygroup)
             ensemble_params[:, i]; return_by_group=true
         )
     end
-    serialize(fn_temporal_ts_bygroup, ts_outputs_bygroup)
+    save_result(fn_temporal_ts_bygroup, ts_outputs_bygroup)
 else
-    ts_outputs_bygroup = deserialize(fn_temporal_ts_bygroup)
+    ts_outputs_bygroup = load_result(fn_temporal_ts_bygroup)
 end
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -628,7 +628,7 @@ lags_yr = [1, 2, 3, 5]
 steps_per_yr = n_sim_steps / length(decimal_years)
 lags_ts = round.(Int, lags_yr .* steps_per_yr)
 
-fn_lagged_pawn = joinpath(ensemble_data_dir, "$(reef_id)_lagged_pawn_results.dat")
+fn_lagged_pawn = joinpath(ensemble_data_dir, "$(reef_id)_lagged_pawn_results.h5")
 
 if !isfile(fn_lagged_pawn)
     lagged_pawn_results = Dict{Int,Matrix{Float64}}()
@@ -646,9 +646,9 @@ if !isfile(fn_lagged_pawn)
         lagged_pawn_results[k] = lag_pawn
     end
 
-    serialize(fn_lagged_pawn, lagged_pawn_results)
+    save_result(fn_lagged_pawn, lagged_pawn_results)
 else
-    lagged_pawn_results = deserialize(fn_lagged_pawn)
+    lagged_pawn_results = load_result(fn_lagged_pawn)
 end
 
 # ── Figure per lag: heatmap (parameters × window-start year) ─────────────────

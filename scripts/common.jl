@@ -18,6 +18,9 @@ import GeoDataFrames as GDF
 using CairoMakie
 using Kora
 
+# save_result / load_result — HDF5 storage for cached analysis results
+include(joinpath(@__DIR__, "..", "src", "result_io.jl"))
+
 OUTPUT_DIR = joinpath(@__DIR__, "..", "data")
 FIG_DIR = joinpath(@__DIR__, "..", "figs")
 EXT_DATA_DIR = joinpath(@__DIR__, "..", "..", "data")

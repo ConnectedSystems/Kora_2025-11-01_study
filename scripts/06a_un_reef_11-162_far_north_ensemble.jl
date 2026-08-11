@@ -140,8 +140,8 @@ function run_calibration(
     ensemble_dir = joinpath(file_paths.output_dir, "ensemble", "offshore_north", "11-162")
     result_files = [
         joinpath(ensemble_dir, "$(reef_config.reef_id)_optim_state.dat"),
-        joinpath(ensemble_dir, "$(reef_config.reef_id)_optim_best.dat"),
-        joinpath(ensemble_dir, "$(reef_config.reef_id)_tracked_candidates.dat")
+        joinpath(ensemble_dir, "$(reef_config.reef_id)_optim_best.h5"),
+        joinpath(ensemble_dir, "$(reef_config.reef_id)_tracked_candidates.h5")
     ]
 
     opt_results = []

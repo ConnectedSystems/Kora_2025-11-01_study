@@ -9,10 +9,10 @@ masig_data_dir = joinpath(
     OUTPUT_DIR, "sensitivity", "torres_strait", "masig", "ensemble"
 )
 
-moore_cons_pawn  = deserialize(joinpath(moore_data_dir,  "16071S_constrained_pawn_results.dat"))
-moore_unc_pawn   = deserialize(joinpath(moore_data_dir,  "16071S_unconstrained_pawn_results.dat"))
-masig_cons_pawn  = deserialize(joinpath(masig_data_dir,  "masig_constrained_pawn_results.dat"))
-masig_unc_pawn   = deserialize(joinpath(masig_data_dir,  "masig_unconstrained_pawn_results.dat"))
+moore_cons_pawn  = load_result(joinpath(moore_data_dir,  "16071S_constrained_pawn_results.h5"))
+moore_unc_pawn   = load_result(joinpath(moore_data_dir,  "16071S_unconstrained_pawn_results.h5"))
+masig_cons_pawn  = load_result(joinpath(masig_data_dir,  "masig_constrained_pawn_results.h5"))
+masig_unc_pawn   = load_result(joinpath(masig_data_dir,  "masig_unconstrained_pawn_results.h5"))
 
 combined_fig_dir = joinpath(FIG_DIR, "sensitivity", "combined")
 mkpath(combined_fig_dir)

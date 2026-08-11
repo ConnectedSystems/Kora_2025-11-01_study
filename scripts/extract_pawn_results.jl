@@ -1,17 +1,18 @@
 """
-Extract PAWN sensitivity results from serialized .dat files and save as CSV.
+Extract PAWN sensitivity results from the cached `.h5` files and save as CSV.
 
 Run from within scripts/:
     julia --project=.. extract_pawn_results.jl
 """
 
-using Serialization
 using CSV, DataFrames
 using DimensionalData
 
-# NOTE: `*_pawn_results.dat` written before the DimensionalData migration hold `YAXArray`s
-# and can no longer be deserialized. Re-run the corresponding `*_ensemble_assessment.jl`
-# script to regenerate them as `DimArray`s.
+include(joinpath(@__DIR__, "..", "src", "result_io.jl"))
+
+# NOTE: the superseded `*_pawn_results.dat` files (now under `old_dat/`) hold
+# `YAXArray`s written before the DimensionalData migration and cannot be read back.
+# Re-run the corresponding `*_ensemble_assessment.jl` script to produce the `.h5`.
 
 OUTPUT_DIR = joinpath(@__DIR__, "..", "data")
 
@@ -47,13 +48,13 @@ for cfg in configs
     @info "Processing $(cfg.label)"
 
     for kind in ("unconstrained", "constrained")
-        fn = joinpath(cfg.data_dir, "$(cfg.reef_id)_$(kind)_pawn_results.dat")
+        fn = joinpath(cfg.data_dir, "$(cfg.reef_id)_$(kind)_pawn_results.h5")
         if !isfile(fn)
             @warn "  Missing: $fn — skipping"
             continue
         end
 
-        results = deserialize(fn)
+        results = load_result(fn)
         df = pawn_to_dataframe(results)
 
         out_path = joinpath(cfg.data_dir, "$(cfg.reef_id)_$(kind)_pawn_results.csv")

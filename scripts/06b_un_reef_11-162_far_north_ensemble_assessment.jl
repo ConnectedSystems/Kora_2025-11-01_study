@@ -50,7 +50,7 @@ reef_id = "11-162"
 ensemble_dir = joinpath(OUTPUT_DIR, "ensemble", "offshore_north", "11-162")
 
 ensemble_output = deserialize(joinpath(ensemble_dir, "$(reef_id)_ensemble_output.dat"));
-un_reef_ensemble = deserialize(joinpath(ensemble_dir, "$(reef_id)_tracked_candidates.dat"));
+un_reef_ensemble = load_result(joinpath(ensemble_dir, "$(reef_id)_tracked_candidates.h5"));
 ensemble_params = hcat(un_reef_ensemble.candidates...);
 
 identifiability_df = parameter_identifiability_metrics(
@@ -78,13 +78,13 @@ ensemble_data_dir = joinpath(OUTPUT_DIR, "sensitivity", "offshore_north", "11-16
 mkpath(ensemble_data_dir)
 
 fn_unconstrained_samples = joinpath(
-    ensemble_data_dir, "$(reef_id)_unconstrained_samples.dat"
+    ensemble_data_dir, "$(reef_id)_unconstrained_samples.h5"
 )
 fn_unconstrained_fitness = joinpath(
-    ensemble_data_dir, "$(reef_id)_unconstrained_fitness.dat"
+    ensemble_data_dir, "$(reef_id)_unconstrained_fitness.h5"
 )
 fn_unconstrained_pawn = joinpath(
-    ensemble_data_dir, "$(reef_id)_unconstrained_pawn_results.dat"
+    ensemble_data_dir, "$(reef_id)_unconstrained_pawn_results.h5"
 )
 
 ensemble_fig_dir = joinpath(FIG_DIR, "sensitivity", "offshore_north", "11-162", "ensemble")
@@ -137,15 +137,15 @@ if !isfile(fn_unconstrained_samples)
         Distributions.quantile.(unif_dists[[1, 7:23...]], unc_samples[:, free_vary_cols]')'
     )
 
-    serialize(fn_unconstrained_samples, unc_samples)
+    save_result(fn_unconstrained_samples, unc_samples)
 
     @info "Running unconstrained sample"
     unc_fitness_scores = map(x -> model_runner(collect(x)), eachrow(unc_samples))
 
-    serialize(fn_unconstrained_fitness, unc_fitness_scores)
+    save_result(fn_unconstrained_fitness, unc_fitness_scores)
 
     unc_pawn_sa_results = pawn(unc_samples, unc_fitness_scores, ENSEMBLE_PARAM_NAMES)
-    serialize(fn_unconstrained_pawn, unc_pawn_sa_results)
+    save_result(fn_unconstrained_pawn, unc_pawn_sa_results)
 
     f, ax, sp = heatmap(
         unc_pawn_sa_results[sortperm(unc_pawn_sa_results[PAWNᵢ=At(:mean)]), :];
@@ -155,19 +155,19 @@ if !isfile(fn_unconstrained_samples)
     ax.xticklabelrotation[] = π / 2
     save(joinpath(ensemble_fig_dir, "$(reef_id)_unconstrained_sa.png"), f; px_per_unit=DPI)
 else
-    unc_samples = deserialize(fn_unconstrained_samples)
-    unc_fitness_scores = deserialize(fn_unconstrained_fitness)
-    unc_pawn_sa_results = deserialize(fn_unconstrained_pawn)
+    unc_samples = load_result(fn_unconstrained_samples)
+    unc_fitness_scores = load_result(fn_unconstrained_fitness)
+    unc_pawn_sa_results = load_result(fn_unconstrained_pawn)
 end
 
 # Create data paths
 fn_constrained_samples = joinpath(
-    ensemble_data_dir, "$(reef_id)_constrained_samples.dat"
+    ensemble_data_dir, "$(reef_id)_constrained_samples.h5"
 )
 fn_constrained_fitness = joinpath(
-    ensemble_data_dir, "$(reef_id)_constrained_fitness.dat"
+    ensemble_data_dir, "$(reef_id)_constrained_fitness.h5"
 )
-fn_constrained_pawn = joinpath(ensemble_data_dir, "$(reef_id)_constrained_pawn_results.dat")
+fn_constrained_pawn = joinpath(ensemble_data_dir, "$(reef_id)_constrained_pawn_results.h5")
 
 if !isfile(fn_constrained_samples)
     # Now constrain to parameter ranges that found good fitness using ensemble values
@@ -185,15 +185,15 @@ if !isfile(fn_constrained_samples)
     cons_samples[:, free_vary_cols] = Matrix(
         Distributions.quantile.(unif_dists[[1, 7:23...]], cons_samples[:, free_vary_cols]')'
     )
-    serialize(fn_constrained_samples, cons_samples)
+    save_result(fn_constrained_samples, cons_samples)
 
     @info "Running ensemble-constrained sample"
     cons_fitness_scores = map(x -> model_runner(collect(x)), eachrow(cons_samples))
 
-    serialize(fn_constrained_fitness, cons_fitness_scores)
+    save_result(fn_constrained_fitness, cons_fitness_scores)
 
     cons_pawn_sa_results = pawn(cons_samples, cons_fitness_scores, ENSEMBLE_PARAM_NAMES)
-    serialize(fn_constrained_pawn, cons_pawn_sa_results)
+    save_result(fn_constrained_pawn, cons_pawn_sa_results)
 
     f, ax, sp = heatmap(
         cons_pawn_sa_results[sortperm(cons_pawn_sa_results[PAWNᵢ=At(:mean)]), :];
@@ -203,9 +203,9 @@ if !isfile(fn_constrained_samples)
     ax.xticklabelrotation[] = π / 2
     save(joinpath(ensemble_fig_dir, "$(reef_id)_constrained_sa.png"), f; px_per_unit=DPI)
 else
-    cons_samples = deserialize(fn_constrained_samples)
-    cons_fitness_scores = deserialize(fn_constrained_fitness)
-    cons_pawn_sa_results = deserialize(fn_constrained_pawn)
+    cons_samples = load_result(fn_constrained_samples)
+    cons_fitness_scores = load_result(fn_constrained_fitness)
+    cons_pawn_sa_results = load_result(fn_constrained_pawn)
 end
 
 # Ensemble correlations

@@ -83,7 +83,7 @@ for reg_scale in region_scale
         Si_growth = pawn(all_growth, all_y_growth; S=10)
         f = plot_pawn_heatmap(Si_growth, "Growth - $(human_scale_name)")
         save("$(fig_output)/Si_$(scale_fn)_growth_overall.png", f; px_per_unit=DPI)
-        serialize(joinpath(reef_dir, "Si_$(scale_fn)_growth_overall.dat"), Si_growth)
+        save_result(joinpath(reef_dir, "Si_$(scale_fn)_growth_overall.h5"), Si_growth)
 
         # Analysis indicate that for specific locales, diameter is an influential factor.
         # But this may differ between locales, need to do further analyses.
@@ -92,7 +92,7 @@ for reg_scale in region_scale
         Si_surv = pawn(all_surv, convert.(Float64, all_y_surv); S=10)
         f = plot_pawn_heatmap(Si_surv, "Survival - $(human_scale_name)")
         save("$(fig_output)/Si_$(scale_fn)_survival_overall.png", f; px_per_unit=DPI)
-        serialize(joinpath(reef_dir, "Si_$(scale_fn)_survival_overall.dat"), Si_surv)
+        save_result(joinpath(reef_dir, "Si_$(scale_fn)_survival_overall.h5"), Si_surv)
 
         #### Group-specific analyses ####
         ####
@@ -157,14 +157,14 @@ for reg_scale in region_scale
             push!(Si_growth_plots, f)
             push!(Si_growth_data, Si_growth)
             save("$(fig_output)/Si_$(scale_fn)_$(taxa)_growth.png", f; px_per_unit=DPI)
-            serialize(joinpath(reef_dir, "Si_$(scale_fn)_$(taxa)_growth.dat"), Si_growth)
+            save_result(joinpath(reef_dir, "Si_$(scale_fn)_$(taxa)_growth.h5"), Si_growth)
 
             Si_surv = pawn(X_surv, convert.(Float64, y_surv); S=10)
             f = plot_pawn_heatmap(Si_surv, "Survival - $(human_scale_name)\n$(group_title)")
             push!(Si_surv_plots, f)
             push!(Si_surv_data, Si_surv)
             save("$(fig_output)/Si_$(scale_fn)_$(taxa)_survival.png", f; px_per_unit=DPI)
-            serialize(joinpath(reef_dir, "Si_$(scale_fn)_$(taxa)_survival.dat"), Si_surv)
+            save_result(joinpath(reef_dir, "Si_$(scale_fn)_$(taxa)_survival.h5"), Si_surv)
         end
     end
 end
@@ -253,7 +253,7 @@ for reg_scale in region_scale
             save(joinpath(wave_fig_dir, "Si_$(scale_fn)_growth_$(suffix).png"), f; px_per_unit=DPI)
             wave_data_dir = joinpath(reef_dir, "wave_subset")
             mkpath(wave_data_dir)
-            serialize(joinpath(wave_data_dir, "Si_$(scale_fn)_growth_$(suffix).dat"), Si_g)
+            save_result(joinpath(wave_data_dir, "Si_$(scale_fn)_growth_$(suffix).h5"), Si_g)
 
             # ── survival ──
             y_surv_raw = wave_surv.surv
@@ -269,7 +269,7 @@ for reg_scale in region_scale
                 "Survival (wave subset) - $(human_scale_name)$(title_suffix)\nn = $(nrow(X_surv))"
             )
             save(joinpath(wave_fig_dir, "Si_$(scale_fn)_survival_$(suffix).png"), f; px_per_unit=DPI)
-            serialize(joinpath(wave_data_dir, "Si_$(scale_fn)_survival_$(suffix).dat"), Si_s)
+            save_result(joinpath(wave_data_dir, "Si_$(scale_fn)_survival_$(suffix).h5"), Si_s)
         end
     end
 end

@@ -675,10 +675,12 @@ function save_calibration_results(
 
     prefix = joinpath(output_dir, reef_id)
 
+    # BlackBoxOptim's optimiser state has no array representation, so it stays on
+    # Julia serialize; everything else round-trips through HDF5.
     serialize("$(prefix)_optim_state.dat", res)
-    serialize("$(prefix)_optim_best.dat", optim_best)
-    serialize(
-        "$(prefix)_tracked_candidates.dat",
+    save_result("$(prefix)_optim_best.h5", optim_best)
+    save_result(
+        "$(prefix)_tracked_candidates.h5",
         (
             candidates=Vector(tracked_candidates),
             fitnesses=Vector(tracked_fitnesses),
@@ -700,8 +702,8 @@ function load_calibration_results(output_dir::String, reef_id::String)
     prefix = joinpath(output_dir, reef_id)
 
     # res = deserialize("$(prefix)_optim_state.dat")
-    # optim_best = deserialize("$(prefix)_optim_best.dat")
-    # tracked_data = deserialize("$(prefix)_tracked_candidates.dat")
+    # optim_best = load_result("$(prefix)_optim_best.h5")
+    # tracked_data = load_result("$(prefix)_tracked_candidates.h5")
     tmp = deserialize("$(prefix)_ensemble_output.dat")
     res = tmp.ensemble_res
     optim_best = tmp.best_params

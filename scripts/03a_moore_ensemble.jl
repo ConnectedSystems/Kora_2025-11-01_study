@@ -191,8 +191,8 @@ end
     ensemble_dir = joinpath(file_paths.output_dir, "ensemble", "offshore_north", "moore")
     result_files = [
         joinpath(ensemble_dir, "$(reef_config.reef_id)_optim_state.dat"),
-        joinpath(ensemble_dir, "$(reef_config.reef_id)_optim_best.dat"),
-        joinpath(ensemble_dir, "$(reef_config.reef_id)_tracked_candidates.dat")
+        joinpath(ensemble_dir, "$(reef_config.reef_id)_optim_best.h5"),
+        joinpath(ensemble_dir, "$(reef_config.reef_id)_tracked_candidates.h5")
     ]
 
     opt_results = []
@@ -212,8 +212,8 @@ end
             opt_config.random_seed, calib_settings.use_scalers
         )
 
-        initial_guess_file = joinpath(ensemble_dir, "$(reef_config.reef_id)_initial_guess.dat")
-        initial_guess = isfile(initial_guess_file) ? deserialize(initial_guess_file) : nothing
+        initial_guess_file = joinpath(ensemble_dir, "$(reef_config.reef_id)_initial_guess.h5")
+        initial_guess = isfile(initial_guess_file) ? load_result(initial_guess_file) : nothing
 
         if !isnothing(initial_guess)
             @info "Seeding population from $(size(initial_guess, 2)) previous candidates"
@@ -467,8 +467,8 @@ ensemble_params = hcat(calibration_output.tracked_candidates...)
 ensemble_fitnesses = calibration_output.tracked_fitnesses
 
 # Save candidates as initial guess for the next calibration round
-serialize(
-    joinpath(ensemble_data_dir, "$(reef_config.reef_id)_initial_guess.dat"),
+save_result(
+    joinpath(ensemble_data_dir, "$(reef_config.reef_id)_initial_guess.h5"),
     ensemble_params
 )
 
