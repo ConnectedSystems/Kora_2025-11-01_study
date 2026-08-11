@@ -1,0 +1,4 @@
+data/
+figs/
+.claude/
+*.code-workspace
