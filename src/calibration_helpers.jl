@@ -343,19 +343,19 @@ end
 """
     create_objective_pool(reef_state, env_conditions, historic_obs, sim_indices,
                           ref_indices, area, benthic_aligned_years, benthic,
-                          seed, use_scalers; n_threads=Threads.nthreads())
+                          seed, use_scalers)
 
-Create a pool of objective functions for parallel sensitivity analysis, one per
-thread. Each entry is an independent `create_objective_function` closure with its
-own `deepcopy` of `reef_state` and a unique seed offset, making the pool safe for
-use with `Threads.@threads`.
+Create a thread-safe pool of objective functions for parallel sensitivity analysis.
+Backed by `Threads.OncePerThread`, so each thread lazily builds — on first use — its
+own `create_objective_function` closure over an independent `copy` of `reef_state`
+and a unique seed offset. Safe for use with `Threads.@threads`.
 
 # Arguments
-All arguments are forwarded to `create_objective_function`. `seed` is used as a
-base; thread `i` (0-indexed) receives `seed + i`.
+All arguments are forwarded to `create_objective_function`.
 
 # Returns
-`Vector` of length `n_threads`, indexed by `Threads.threadid()`.
+A callable `Threads.OncePerThread`; call it with no arguments to get the current
+thread's objective function, e.g. `pool()(x)`.
 """
 function create_objective_pool(
     reef_state::ReefState,
@@ -367,18 +367,81 @@ function create_objective_pool(
     benthic_aligned_years::Union{BitVector,Nothing},
     benthic::Union{DataFrame,Nothing},
     seed::Int,
-    use_scalers::Bool;
-    n_threads::Int=Threads.nthreads()
+    use_scalers::Bool
 )
-    return [
+    return Threads.OncePerThread{Function}() do
         create_objective_function(
             copy(reef_state), env_conditions, historic_obs,
             sim_indices, ref_indices, area,
             benthic_aligned_years, benthic,
-            seed + i, use_scalers
+            seed + Threads.threadid(), use_scalers
         )
-        for i in 0:(n_threads - 1)
-    ]
+    end
+end
+
+"""
+    create_timeseries_function(reef_state, env_conditions, area, seed, use_scalers)
+
+Create a function that runs the model and returns the full simulated coral cover
+trajectory rather than aggregating to a scalar fitness score. Shares the same
+parameter layout and transformation as `create_objective_function`, so
+`ensemble_params` columns can be passed directly.
+
+Thread-safe: `reef_state` is mutated in-place by `run_model!`, so each thread
+lazily gets its own `copy` and seeded RNG via `Threads.OncePerThread`.
+
+# Returns
+A function `(x; return_by_group=false) → cover`, where `cover` is total cover
+(`Vector{Float32}`, length `n_timesteps`) or per-group cover (`Matrix{Float32}`,
+`n_timesteps × n_groups`) if `return_by_group=true`.
+"""
+function create_timeseries_function(
+    reef_state::ReefState,
+    env_conditions::AbstractDimArray,
+    area::Float32,
+    seed::Int,
+    use_scalers::Bool
+)
+    state_pool = Threads.OncePerThread{typeof(reef_state)}(() -> copy(reef_state))
+    rng_pool = Threads.OncePerThread{typeof(copy(Random.default_rng()))}() do
+        Random.seed!(copy(Random.default_rng()), seed + Threads.threadid())
+    end
+
+    function timeseries(x; return_by_group::Bool=false)
+        rs = state_pool()
+        rng = rng_pool()
+
+        x = vcat(x[1], gamma_to_dirichlet(x[2:6]), x[7:end])
+
+        Kora.set_population!(rs, x)
+
+        if use_scalers
+            n_grps = Kora.n_groups(rs)
+            scaler_end = 17 + n_grps - 1
+            loc_scalers = x[17:scaler_end]
+            Kora.assign_scalers!(rs, loc_scalers)
+            recruitment_proportion = x[end - 1]
+            self_seeding_proportion = x[end]
+            Kora.run_model!(
+                rs, env_conditions;
+                recruits=Float32(recruitment_proportion),
+                self_seed=Float32(self_seeding_proportion),
+                rng=rng
+            )
+        else
+            Kora.run_model!(rs, env_conditions; rng=rng)
+        end
+
+        if return_by_group
+            # (n_timesteps × n_groups) — enables per-group temporal PAWN
+            return Kora.group_cover_timeseries(rs) ./ area
+        else
+            cover = Kora.coral_cover(rs)
+            return cover ./ area
+        end
+    end
+
+    return timeseries
 end
 
 """
@@ -504,6 +567,80 @@ function create_tracking_callback(fitness_threshold::Float64, n_members::Int64)
     end
 
     return callback, tracked_candidates, tracked_fitnesses, trial_counter
+end
+
+"""
+    create_stagnation_callback()
+
+Create a callback that performs early stopping on optimizer stagnation only (no
+candidate tracking). Mirrors the stagnation-detection logic in
+[`create_tracking_callback`](@ref); used together with
+[`harvest_final_population`](@ref), which takes a single end-of-trial snapshot of
+the best candidates instead of accumulating them across every iteration.
+"""
+function create_stagnation_callback()
+    candidate_progress = CircularBuffer{Int64}(10000)
+
+    function callback(oc)
+        push!(candidate_progress, oc.num_better)
+
+        elapsed_time = (time() - oc.start_time)
+
+        if (30 < elapsed_time < 200) && (length(candidate_progress) >= 1000)
+            no_progress = all(candidate_progress .== candidate_progress[end])
+            if no_progress
+                BlackBoxOptim.shutdown!(oc)
+                println("Early stopping: No progress in last 1000 iterations")
+                return true
+            end
+        end
+
+        if elapsed_time >= 600  # 10 minutes
+            no_progress = all(candidate_progress .== candidate_progress[end])
+            if no_progress
+                BlackBoxOptim.shutdown!(oc)
+                return true
+            end
+
+            avg_fitness = mean(oc.optimizer.population.fitness)
+            if avg_fitness < 0.15
+                println(
+                    "Stopping: Average fitness ($(round(avg_fitness, digits=4))) below threshold"
+                )
+                BlackBoxOptim.shutdown!(oc)
+                return true
+            end
+        end
+
+        return false
+    end
+
+    return callback
+end
+
+"""
+    harvest_final_population(res, fitness_threshold; n_best=20)
+
+Take a single end-of-trial snapshot of `res`'s final population (as opposed to
+[`create_tracking_callback`](@ref)'s per-iteration accumulation across the whole
+run), returning the best `n_best` candidates below `fitness_threshold`.
+
+Falls back to a `(fitness, individuals)` reconstruction for optimizer methods whose
+`population(res)` does not expose `.fitness`/`.individuals` directly (mirrors the
+equivalent fallback in [`create_tracking_callback`](@ref)).
+"""
+function harvest_final_population(res, fitness_threshold::Float64; n_best::Int=20)
+    pop = population(res)
+    fits, indivs = try
+        pop.fitness, pop.individuals
+    catch
+        fitness.(pop), hcat(getfield.(pop, :params)...)
+    end
+
+    below = findall(f -> f < fitness_threshold, fits)
+    keep = below[partialsortperm(fits[below], 1:min(n_best, length(below)))]
+
+    return [indivs[:, i] for i in keep], fits[keep]
 end
 
 """

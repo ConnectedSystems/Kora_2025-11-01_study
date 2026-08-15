@@ -84,6 +84,64 @@ function parameter_identifiability_metrics(ensemble_params, param_names)
 end
 
 """
+Per-candidate nearest-neighbour diversity check for an ensemble.
+
+Unlike `effective_ensemble_diversity`'s single mean pairwise distance, which a
+handful of duplicate clusters can barely move, this asks, for every candidate,
+how close its closest neighbour is — surfacing near-duplicate solutions (repeated
+optimizer convergence to the same basin) that an aggregate mean can hide.
+
+Each parameter is rescaled to its `param_bounds` range before computing Euclidean
+distance, so wide-ranged parameters (e.g. size means) don't dominate distances
+over tightly-bounded ones (e.g. recruitment).
+
+`ensemble_params` must be in shape [params ⋅ candidates], as with
+`parameter_identifiability_metrics`. `param_bounds` is an iterable of `(lo, hi)`
+pairs, one per row of `ensemble_params`/`param_names`.
+
+`near_dup_threshold` is a fraction of the normalized parameter-space diagonal
+(`sqrt(n_params)`); candidates whose nearest-neighbour distance falls below it are
+flagged as near-duplicates.
+
+Returns a per-candidate DataFrame with the nearest-neighbour index/distance.
+"""
+function parameter_nearest_neighbour_diversity(
+    ensemble_params, param_names, param_bounds; near_dup_threshold=0.05
+)
+    n_params, n_candidates = size(ensemble_params)
+    length(param_names) == n_params ||
+        throw(ArgumentError("param_names must have one entry per row of ensemble_params"))
+
+    lo = Float64.(first.(param_bounds))
+    hi = Float64.(last.(param_bounds))
+    span = hi .- lo
+    normalized = (ensemble_params .- lo) ./ span
+
+    nn_dist = fill(Inf, n_candidates)
+    nn_idx = zeros(Int, n_candidates)
+    for i in 1:n_candidates
+        for j in 1:n_candidates
+            i == j && continue
+            d = norm(view(normalized, :, i) .- view(normalized, :, j))
+            if d < nn_dist[i]
+                nn_dist[i] = d
+                nn_idx[i] = j
+            end
+        end
+    end
+
+    rel_nn_dist = nn_dist ./ sqrt(n_params)
+
+    return DataFrame(;
+        candidate=1:n_candidates,
+        nearest_neighbour=nn_idx,
+        nn_distance=nn_dist,
+        rel_nn_distance=rel_nn_dist,
+        near_duplicate=rel_nn_dist .< near_dup_threshold
+    )
+end
+
+"""
 Determine high correlations to identify trade-offs between parameters.
 
 ensemble_params must be in shape [params ⋅ values]

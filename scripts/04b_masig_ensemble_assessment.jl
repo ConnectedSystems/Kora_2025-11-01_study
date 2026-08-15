@@ -309,61 +309,7 @@ save(
 # ADDITION 2 — Temporal (time-varying) PAWN sensitivity analysis
 # ═══════════════════════════════════════════════════════════════════════════════
 
-"""
-    create_timeseries_function(reef_state, env_conditions, area, seed, use_scalers)
-
-Create a function that runs the model and returns the full simulated coral cover
-trajectory rather than aggregating to a scalar fitness score.  Thread-safe via
-an internal pool of reef_state copies.
-"""
-function create_timeseries_function(
-    reef_state::ReefState,
-    env_conditions::AbstractDimArray,
-    area::Float32,
-    seed::Int,
-    use_scalers::Bool
-)
-    n_threads = Threads.nthreads()
-    state_pool = [copy(reef_state) for _ in 1:n_threads]
-    rng_pool = [
-        Random.seed!(copy(Random.default_rng()), seed + i) for i in 0:(n_threads - 1)
-    ]
-
-    function timeseries(x; return_by_group::Bool=false)
-        tid = Threads.threadid()
-        rs = state_pool[tid]
-        rng = rng_pool[tid]
-
-        x = vcat(x[1], gamma_to_dirichlet(x[2:6]), x[7:end])
-
-        Kora.set_population!(rs, x)
-
-        if use_scalers
-            n_grps = Kora.n_groups(rs)
-            scaler_end = 17 + n_grps - 1
-            loc_scalers = x[17:scaler_end]
-            Kora.assign_scalers!(rs, loc_scalers)
-            recruitment_proportion = x[end - 1]
-            self_seeding_proportion = x[end]
-            Kora.run_model!(
-                rs, env_conditions;
-                recruits=Float32(recruitment_proportion),
-                self_seed=Float32(self_seeding_proportion),
-                rng=rng
-            )
-        else
-            Kora.run_model!(rs, env_conditions; rng=rng)
-        end
-
-        if return_by_group
-            return Kora.group_cover_timeseries(rs) ./ area
-        else
-            return Kora.coral_cover(rs) ./ area
-        end
-    end
-
-    return timeseries
-end
+# create_timeseries_function is defined in src/calibration_helpers.jl
 
 # ── Output paths ──────────────────────────────────────────────────────────────
 fn_temporal_ts   = joinpath(ensemble_data_dir, "$(reef_id)_temporal_ts_outputs.h5")
