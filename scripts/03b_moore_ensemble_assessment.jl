@@ -17,6 +17,21 @@ corr_df = parameter_correlation_analysis(
 corr_df[!, :Correlation] .= round.(corr_df.Correlation; digits=3)
 CSV.write(joinpath(ensemble_dir, "$(reef_id)_parameter_correlations.csv"), corr_df)
 
+# ── Ensemble nearest-neighbour diversity ──────────────────────────────────────
+# Flags near-duplicate candidates (repeated optimizer convergence to the same
+# basin) that the aggregate `effective_ensemble_diversity` mean can hide.
+nn_diversity_df = parameter_nearest_neighbour_diversity(
+    ensemble_params, ENSEMBLE_PARAM_NAMES, values(param_bounds); near_dup_threshold=0.05
+)
+nn_diversity_df[!, :nn_distance] .= round.(nn_diversity_df.nn_distance; digits=4)
+nn_diversity_df[!, :rel_nn_distance] .= round.(nn_diversity_df.rel_nn_distance; digits=4)
+CSV.write(joinpath(ensemble_dir, "$(reef_id)_nn_diversity.csv"), nn_diversity_df)
+
+n_near_dup = sum(nn_diversity_df.near_duplicate)
+if n_near_dup > 0
+    @warn "$(n_near_dup)/$(nrow(nn_diversity_df)) ensemble candidates are near-duplicates of another candidate" reef_id
+end
+
 # ── Create paths ──────────────────────────────────────────────────────────────
 ensemble_data_dir = joinpath(OUTPUT_DIR, "sensitivity", "offshore_north", "moore", "ensemble")
 mkpath(ensemble_data_dir)
@@ -33,6 +48,11 @@ fn_unconstrained_pawn = joinpath(
 
 ensemble_fig_dir = joinpath(FIG_DIR, "sensitivity", "offshore_north", "moore", "ensemble")
 mkpath(ensemble_fig_dir)
+
+f_nn = plot_nn_diversity_histogram(
+    nn_diversity_df, "Nearest-neighbour diversity — $(reef_id)"
+)
+save(joinpath(ensemble_fig_dir, "$(reef_id)_nn_diversity_histogram.png"), f_nn; px_per_unit=DPI)
 
 # Loaded unconditionally: sim_year_range is referenced by the temporal PAWN
 # section regardless of whether cached sensitivity results exist on disk.
@@ -105,7 +125,7 @@ if !isfile(fn_unconstrained_samples)
     @info "Running unconstrained sample ($(n_threads) threads)"
     unc_fitness_scores = Vector{Float64}(undef, size(unc_samples, 1))
     Threads.@threads :static for i in axes(unc_samples, 1)
-        unc_fitness_scores[i] = runner_pool[Threads.threadid()](collect(unc_samples[i, :]))
+        unc_fitness_scores[i] = runner_pool()(collect(unc_samples[i, :]))
     end
 
     save_result(fn_unconstrained_fitness, unc_fitness_scores)
@@ -152,7 +172,7 @@ if !isfile(fn_constrained_samples)
     @info "Running ensemble-constrained sample ($(n_threads) threads)"
     cons_fitness_scores = Vector{Float64}(undef, size(cons_samples, 1))
     Threads.@threads :static for i in axes(cons_samples, 1)
-        cons_fitness_scores[i] = runner_pool[Threads.threadid()](
+        cons_fitness_scores[i] = runner_pool()(
             collect(cons_samples[i, :])
         )
     end
@@ -239,7 +259,7 @@ most_influential = collect(
     sortperm(cons_pawn_sa_results[PAWNᵢ=At(:mean)]; rev=true)[1:10]
 )
 
-factor_names = collect(collect(cons_pawn_sa_results.factors[most_influential]))
+factor_names = Array(dims(cons_pawn_sa_results, :factors))[most_influential]
 
 target_df = df[:, factor_names]
 
@@ -369,7 +389,7 @@ if !isfile(fn_temporal_ts)
         @info "Option B: re-running model on $(size(ensemble_params, 2)) ensemble candidates"
 
         n_candidates = size(ensemble_params, 2)
-        n_sim_steps = length(env_conditions.timestep)
+        n_sim_steps = size(env_conditions, :timestep)
 
         if n_candidates < 100
             @warn "Only $(n_candidates) ensemble candidates available. " *
@@ -649,6 +669,77 @@ save(
     joinpath(ensemble_fig_dir, "$(reef_id)_lagged_pawn_crosslag_summary.png"),
     fig_crosslag; px_per_unit=DPI
 )
+
+# ── Disturbance-windowed lag profile ──────────────────────────────────────────
+# Restricts the lag-profile view to window-start years immediately following
+# each known disturbance (e.g. recovery from the 2017 bleaching event), rather
+# than averaging over all window-start years as above. Always includes the
+# recruitment parameters so their lag behaviour is visible even if they don't
+# crack the overall top-k.
+recruitment_param_names = ["External Recruitment", "Self-seeding"]
+recruit_rows = findall(in(recruitment_param_names), ENSEMBLE_PARAM_NAMES)
+profile_rows = unique(vcat(top_k_rows, recruit_rows))
+
+function plot_disturbance_lag_profile(
+    dist_yr, decimal_years, temporal_pawn, lagged_pawn_results,
+    lags_yr, lags_ts, profile_rows, param_names, palette, recruitment_param_names;
+    window_pad=1
+)
+    window_years = dist_yr:(dist_yr + window_pad)
+
+    fig = Figure(; size=(900, 420))
+    ax = Axis(
+        fig[1, 1];
+        xlabel="Lag (years)",
+        ylabel="Mean PAWN index",
+        title="Recovery-lag profile — window $(Int(dist_yr))–$(Int(dist_yr + window_pad)) — $(reef_id)",
+        xticks=vcat(0, lags_yr)
+    )
+
+    idx0 = findall(y -> y in window_years, decimal_years)
+
+    for (rank, pidx) in enumerate(profile_rows)
+        lag0_mean = mean(temporal_pawn[pidx, idx0])
+
+        lagged_means = Float64[]
+        for k in lags_ts
+            n_valid = size(lagged_pawn_results[k], 2)
+            valid_years = decimal_years[1:n_valid]
+            idx_k = findall(y -> y in window_years, valid_years)
+            push!(lagged_means, mean(lagged_pawn_results[k][pidx, idx_k]))
+        end
+
+        all_lags = Float64.(vcat(0, lags_yr))
+        all_means = vcat(lag0_mean, lagged_means)
+
+        is_recruit = param_names[pidx] in recruitment_param_names
+        col = palette[mod1(rank, length(palette))]
+        lines!(ax, all_lags, all_means;
+            label=string(param_names[pidx]),
+            color=is_recruit ? col : (col, 0.35),
+            linewidth=is_recruit ? 3.0 : 1.2
+        )
+        scatter!(ax, all_lags, all_means; color=col, markersize=is_recruit ? 9 : 5)
+    end
+
+    Legend(fig[1, 2], ax; framevisible=false)
+    return fig
+end
+
+for yr in disturbance_years
+    fig_profile = plot_disturbance_lag_profile(
+        yr, decimal_years, temporal_pawn, lagged_pawn_results,
+        lags_yr, lags_ts, profile_rows, ENSEMBLE_PARAM_NAMES, palette,
+        recruitment_param_names
+    )
+    save(
+        joinpath(
+            ensemble_fig_dir,
+            "$(reef_id)_lagged_pawn_disturbance_$(Int(yr))_profile.png"
+        ),
+        fig_profile; px_per_unit=DPI
+    )
+end
 
 # ── Per-group temporal PAWN ───────────────────────────────────────────────────
 group_names = Kora.TARGET_GROUPS
