@@ -29,18 +29,34 @@ end
 
 @everywhere function run_single_trial(
     trial_id::Int,
-    objective::Function,
+    objective_args::NamedTuple,
     search_ranges::NamedTuple,
     opt_config::OptimizationConfig,
     fitness_threshold::Float64,
-    ensemble_members::Int,
     initial_guess::Union{Nothing,Matrix{Float64}}
 )
     @info "Worker $(myid()): Starting trial $(trial_id)"
 
-    callback, tracked_candidates, tracked_fitnesses, trial_counter = create_tracking_callback(
-        fitness_threshold, ensemble_members
+    # Distinct seed per trial: previously all trials shared one seeded RNG closed
+    # over by a single objective built in the driver process, which correlated the
+    # model-stochasticity noise across otherwise-independent parallel trials.
+    objective = create_objective_function(
+        objective_args.reef_state,
+        objective_args.env_conditions,
+        objective_args.historic_obs,
+        objective_args.sim_indices,
+        objective_args.ref_indices,
+        objective_args.area,
+        objective_args.benthic_aligned_years,
+        objective_args.benthic,
+        opt_config.random_seed + trial_id,
+        objective_args.use_scalers
     )
+
+    # End-of-trial snapshot harvesting (harvest_final_population) replaces the previous
+    # per-iteration accumulation: the stagnation callback only handles early stopping now,
+    # decoupled from candidate tracking, which happens once after `bboptimize` returns.
+    stagnation_callback = create_stagnation_callback()
 
     opts = Dict(
         :SearchRange => collect(search_ranges),
@@ -48,7 +64,7 @@ end
         :MaxTime => 40 * 60,
         :PopulationSize => opt_config.population_size,
         :CallbackInterval => 0.0,
-        :CallbackFunction => callback,
+        :CallbackFunction => stagnation_callback,
         :TraceInterval => opt_config.trace_interval
     )
 
@@ -61,7 +77,8 @@ end
 
     res = bboptimize(objective; opts...)
 
-    n_found = trial_counter[]
+    tracked_candidates, tracked_fitnesses = harvest_final_population(res, fitness_threshold; n_best=10)
+    n_found = length(tracked_candidates)
     @info "Worker $(myid()): Trial $(trial_id) complete - found $(n_found) candidates"
 
     return (
@@ -206,10 +223,14 @@ end
     else
         @info "Running parallel optimization..."
 
-        objective = create_objective_function(
-            reef_state, env_conditions, reef_obs.MEAN_LIVE_CORAL,
-            c_sim_indices, c_ref_indices, reef_config.area, sim_benthic_years, calib_benthic_data,
-            opt_config.random_seed, calib_settings.use_scalers
+        # Ingredients for `create_objective_function`, minus the seed — each trial
+        # builds its own objective (see `run_single_trial`) with a distinct seed so
+        # parallel trials aren't correlated by shared model stochasticity.
+        objective_args = (;
+            reef_state, env_conditions, historic_obs=reef_obs.MEAN_LIVE_CORAL,
+            sim_indices=c_sim_indices, ref_indices=c_ref_indices, area=reef_config.area,
+            benthic_aligned_years=sim_benthic_years, benthic=calib_benthic_data,
+            use_scalers=calib_settings.use_scalers
         )
 
         initial_guess_file = joinpath(ensemble_dir, "$(reef_config.reef_id)_initial_guess.h5")
@@ -222,6 +243,13 @@ end
         tracked_candidates = CircularBuffer{Vector{Float64}}(opt_config.ensemble_members)
         tracked_fitnesses = CircularBuffer{Float64}(opt_config.ensemble_members)
         trial_contribution = Int64[]
+
+        # Per-trial raw harvest, retained (unlike `tracked_candidates`, which only keeps the
+        # global best-250-across-all-trials after merging) so within-trial vs across-trial
+        # duplication can be told apart -- see nearest-neighbour diversity diagnostics.
+        per_trial_ids = Int64[]
+        per_trial_candidates = Vector{Float64}[]
+        per_trial_fitnesses = Float64[]
 
         trial_id = 1
         n_workers_available = length(workers())
@@ -236,17 +264,22 @@ end
 
             trial_results = pmap(id -> run_single_trial(
                 id,
-                objective,
+                objective_args,
                 search_ranges,
                 opt_config,
                 opt_config.fitness_threshold,
-                opt_config.ensemble_members,
                 initial_guess
             ), trial_ids)
 
             for result in trial_results
                 push!(opt_results, result.res)
                 push!(trial_contribution, result.n_candidates)
+
+                for (c, f) in zip(result.tracked_candidates, result.tracked_fitnesses)
+                    push!(per_trial_ids, result.trial_id)
+                    push!(per_trial_candidates, copy(c))
+                    push!(per_trial_fitnesses, f)
+                end
 
                 if result.n_candidates > 0
                     merge_best_candidates!(
@@ -291,6 +324,20 @@ end
         for c in tracked_candidates
             c[2:6] .= gamma_to_dirichlet(c[2:6])
         end
+        for c in per_trial_candidates
+            c[2:6] .= gamma_to_dirichlet(c[2:6])
+        end
+
+        # Save the raw per-trial harvest (pre-merge) for diagnosing within-trial vs
+        # across-trial duplication -- see `parameter_nearest_neighbour_diversity`.
+        per_trial_df = DataFrame(Matrix(hcat(per_trial_candidates...)'), :auto)
+        rename!(per_trial_df, ENSEMBLE_PARAM_NAMES)
+        insertcols!(per_trial_df, 1, :trial_id => per_trial_ids)
+        insertcols!(per_trial_df, 2, :fitness => per_trial_fitnesses)
+        CSV.write(
+            joinpath(ensemble_dir, "$(reef_config.reef_id)_per_trial_candidates.csv"),
+            per_trial_df
+        )
 
         save_calibration_results(
             ensemble_dir, reef_config.reef_id, opt_results[end], optim_best,
