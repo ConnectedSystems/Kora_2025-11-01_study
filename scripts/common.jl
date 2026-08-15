@@ -224,6 +224,37 @@ function plot_pawn_heatmap(
 end
 
 """
+    plot_nn_diversity_histogram(nn_df, title; near_dup_threshold)
+
+Histogram of per-candidate nearest-neighbour distances (from
+`parameter_nearest_neighbour_diversity`), with `near_dup_threshold` marked so
+clusters of near-duplicate ensemble members are visible at a glance.
+"""
+function plot_nn_diversity_histogram(
+    nn_df::DataFrame,
+    title::String;
+    near_dup_threshold::Real=0.05,
+    fig_size::Tuple{Int,Int}=(700, 400)
+)
+    f = Figure(; size=fig_size)
+    ax = Axis(
+        f[1, 1];
+        xlabel="Nearest-neighbour distance (fraction of normalized param-space diagonal)",
+        ylabel="Count",
+        title=title
+    )
+    hist!(ax, nn_df.rel_nn_distance; bins=40, color=(:steelblue, 0.7))
+    vlines!(ax, near_dup_threshold; color=:red, linestyle=:dash, linewidth=1.5)
+    text!(
+        ax, near_dup_threshold, 0.0;
+        text="near-duplicate\nthreshold", color=:red, fontsize=11,
+        align=(:left, :bottom), offset=(4, 4)
+    )
+
+    return f
+end
+
+"""
     export_model_summaries(fits, output_dir, prefix)
 
 Save two CSV files to `output_dir`:
