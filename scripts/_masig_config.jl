@@ -23,7 +23,7 @@ file_paths = CalibrationDataPaths(;
 # Optimization settings
 opt_config = OptimizationConfig(;
     max_steps=150_000,
-    population_size=50,
+    population_size=100,
     fitness_threshold=0.3,
     ensemble_members=250,
     trace_interval=10,
@@ -61,15 +61,17 @@ param_bounds = (;
     size_stdev_sm_mass=(0.25, 2.0),
     size_stdev_lrg_mass=(0.25, 2.0),
 
-    # Growth scalers — kept near 1.0 because EcoRRAP-derived growth functions
-    # already encode reef-specific rates. Allowing large deviations risks finding
+    # Growth scalers — fixed near 1.0 (not calibrated). EcoRRAP-derived growth
+    # functions already encode reef-specific rates, so allowing deviation risks
     # solutions that fit the calibration period under suppressive DHW but then
-    # accelerate unrealistically once DHW drops.
-    scalers_tab_acro=(0.95, 1.05),
-    scalers_cor_acro=(0.95, 1.05),
-    scalers_cor_non_acro=(0.95, 1.05),
-    scalers_sm_mass=(0.95, 1.05),
-    scalers_lrg_mass=(0.95, 1.05),
+    # accelerate unrealistically once DHW drops. Bounds can't be an exact point
+    # (1.0, 1.0): uniform sampling and the nearest-neighbour diversity
+    # normalization both require nonzero width.
+    scalers_tab_acro=(0.999, 1.001),
+    scalers_cor_acro=(0.999, 1.001),
+    scalers_cor_non_acro=(0.999, 1.001),
+    scalers_sm_mass=(0.999, 1.001),
+    scalers_lrg_mass=(0.999, 1.001),
 
     # Recruitment
     recruitment=(0.001, 0.15),

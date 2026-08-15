@@ -23,7 +23,7 @@ file_paths = CalibrationDataPaths(;
 # Optimization settings
 opt_config = OptimizationConfig(;
     max_steps=50_000,
-    population_size=50,
+    population_size=100,
     fitness_threshold=0.2,
     ensemble_members=250,
     trace_interval=10,
@@ -73,7 +73,9 @@ param_bounds = (;
     size_stdev_sm_mass=(0.1, 2.5),
     size_stdev_lrg_mass=(0.1, 2.5),
 
-    # Growth scalers
+    # Growth scalers — free range. Multiply the per-step Euler growth increment
+    # each year, so may compensate for annualization bias in the fitted growth
+    # curves rather than being redundant.
     scalers_tab_acro=(0.25, 1.75),
     scalers_cor_acro=(0.25, 1.75),
     scalers_cor_non_acro=(0.25, 1.75),
