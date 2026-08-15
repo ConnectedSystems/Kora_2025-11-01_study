@@ -62,9 +62,9 @@ Julia ≥ 1.11 is recommended. Install dependencies by activating the project an
 
 ### Parallel execution
 
-Scripts `03a`, `04a`, and `05a` spawn worker processes via `Distributed.addprocs`. The number of
+Scripts `03a` and `04a` spawn worker processes via `Distributed.addprocs`. The number of
 workers is set at the top of each script (`n_workers = 20`). Adjust this to match available CPU
-cores before running.
+cores before running. `06a` (Reef 11-162) runs single-process and does not use `Distributed`.
 
 ---
 
@@ -215,12 +215,18 @@ Within each stage, `a` scripts produce data consumed by `b` scripts.
 | `scripts/04a_masig_torres_strait_ensemble.jl` | Config `scripts/_masig_config.jl`, model `.dat` files, EcoRRAP benthic CSV, DHW CSV | `data/ensemble/torres_strait/masig/masig_*.dat`, calibration figures, summary CSVs | Same parallel calibration workflow as `03a` |
 | `scripts/04b_masig_ensemble_assessment.jl` | Output of `04a`, EcoRRAP benthic CSV | `data/sensitivity/torres_strait/masig/ensemble/masig_*.dat`, `data/ensemble/torres_strait/masig/masig_parameter_correlations.csv`, sensitivity figures | Same SA workflow as `03b` |
 
-### Stage 5: Reef 11-162 (Far North) ensemble calibration and assessment
+### Stage 5: Combined sensitivity heatmaps (Moore + Masig)
 
 | Script | Inputs | Key outputs | Notes |
 |---|---|---|---|
-| `scripts/05a_un_reef_11-162_far_north_ensemble.jl` | Inline config (no separate config file), `data/offshore_north/overall/*_models.dat`, LTMP benthic CSV, DHW CSV | `data/ensemble/offshore_north/11-162/11-162_*.dat`, calibration figures | Calibration only; uses region-level (overall) models, not reef-specific ones |
-| `scripts/05b_un_reef_11-162_far_north_ensemble_assessment.jl` | Output of `05a` | `data/sensitivity/offshore_north/11-162/ensemble/`, figures | Sensitivity assessment; no temporal analysis (shorter time series) |
+| `scripts/05_combined_sa_heatmaps.jl` | Cached PAWN results from `03b` (`16071S_*_pawn_results.h5`) and `04b` (`masig_*_pawn_results.h5`) | `figs/sensitivity/combined/` | Combines Moore and Masig PAWN heatmaps into shared figures on a common colour scale; no calibration, plotting only |
+
+### Stage 6: Reef 11-162 (Far North) ensemble calibration and assessment
+
+| Script | Inputs | Key outputs | Notes |
+|---|---|---|---|
+| `scripts/06a_un_reef_11-162_far_north_ensemble.jl` | Inline config (no separate config file), `data/offshore_north/overall/*_models.dat`, LTMP benthic CSV, DHW CSV | `data/ensemble/offshore_north/11-162/11-162_*.dat`, calibration figures | Calibration only; uses region-level (overall) models, not reef-specific ones. Single-process (no `Distributed` workers) |
+| `scripts/06b_un_reef_11-162_far_north_ensemble_assessment.jl` | Output of `06a` | `data/sensitivity/offshore_north/11-162/ensemble/`, figures | Sensitivity assessment; no temporal analysis (shorter time series) |
 
 ---
 
@@ -234,7 +240,7 @@ at the top of each calibration script:
 | `scripts/_16071S_config.jl` | Moore Reef | `ReefConfig` (area, depth, density, initial proportions, excluded years, disturbance years), `CalibrationDataPaths`, `OptimizationConfig`, `CalibrationSettings`, `param_bounds` |
 | `scripts/_masig_config.jl` | Masig Reef | Same structure |
 
-Reef 11-162 has no separate config file; settings are defined inline in `scripts/05a`.
+Reef 11-162 has no separate config file; settings are defined inline in `scripts/06a`.
 
 **To adapt to a new reef**, copy one of the config files, update all fields, and create new `a`/`b`
 script pair following the existing pattern.
@@ -254,7 +260,7 @@ script pair following the existing pattern.
 
 ## Iterative (multi-start ensemble) calibration
 
-The `03a`/`04a`/`05a` scripts implement a deliberate multi-round workflow:
+The `03a`/`04a`/`06a` scripts implement a deliberate multi-round workflow:
 
 1. **First run** — no prior candidates exist; the script runs from scratch and saves
    `*_initial_guess.dat` alongside the ensemble output.
