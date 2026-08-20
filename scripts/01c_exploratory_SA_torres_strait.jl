@@ -56,17 +56,8 @@ for reg_scale in region_scale
         all_y_surv[ismissing.(all_y_surv), :] .= 0
         all_y_surv = Int64.(all_y_surv)
 
-        ignore_cols = [g for g in growth_ignore_cols if g in propertynames(all_growth)]
-        select!(
-            all_growth,
-            Not(ignore_cols)
-        )
-
-        ignore_cols = [g for g in surv_ignore_cols if g in propertynames(all_surv)]
-        select!(
-            all_surv,
-            Not(ignore_cols)
-        )
+        select!(all_growth, intersect(growth_include_cols, propertynames(all_growth)))
+        select!(all_surv, intersect(surv_include_cols, propertynames(all_surv)))
 
         cleanup_features!(all_growth)
         cleanup_features!(all_surv)
@@ -128,17 +119,8 @@ for reg_scale in region_scale
                 Int64.(tmp.surv)
             end
 
-            ignore_cols = [g for g in surv_ignore_cols if g in propertynames(X_surv)]
-            select!(
-                X_surv,
-                Not(ignore_cols)
-            )
-
-            ignore_cols = [g for g in growth_ignore_cols if g in propertynames(X_growth)]
-            select!(
-                X_growth,
-                Not(ignore_cols)
-            )
+            select!(X_surv, intersect(surv_include_cols, propertynames(X_surv)))
+            select!(X_growth, intersect(growth_include_cols, propertynames(X_growth)))
 
             cleanup_features!(X_surv)
             cleanup_features!(X_growth)
@@ -220,15 +202,12 @@ for reg_scale in region_scale
         end
 
         # ── helper: build SA-ready feature matrix with wave optionally included ──
-        function prepare_wave_features(df::DataFrame, ignore_cols_base, include_wave::Bool)
-            # Always drop the redundant wave columns; keep wave_hs_mean only when requested.
-            wave_always_drop = [:wave_hs_median, :n_days_waves]
+        function prepare_wave_features(df::DataFrame, include_cols_base, include_wave::Bool)
+            # wave_hs_mean is excluded from the base include-lists (sparse coverage);
+            # add it back in here when requested for the wave subset.
             wave_keep = include_wave ? [:wave_hs_mean] : Symbol[]
-            # Build the drop list from the base ignore list, stripping any columns we
-            # want to keep, then add the always-drop wave columns.
-            base_drop = filter(c -> c ∉ wave_keep, ignore_cols_base)
-            drop = [c for c in vcat(base_drop, wave_always_drop) if c in propertynames(df)]
-            X = select(df, Not(unique(drop)))
+            keep = [c for c in vcat(include_cols_base, wave_keep) if c in propertynames(df)]
+            X = select(df, unique(keep))
             cleanup_features!(X)
             rename_for_display!(X)
             return X
@@ -240,7 +219,7 @@ for reg_scale in region_scale
 
             # ── growth ──
             y_growth = wave_growth.est_1yo_growth
-            X_growth = prepare_wave_features(wave_growth, growth_ignore_cols, include_wave)
+            X_growth = prepare_wave_features(wave_growth, growth_include_cols, include_wave)
             for col in names(X_growth)
                 eltype(X_growth[!, col]) <: AbstractFloat && replace!(X_growth[!, col], NaN => -1.0)
             end
@@ -258,7 +237,7 @@ for reg_scale in region_scale
             # ── survival ──
             y_surv_raw = wave_surv.surv
             y_surv = Int64.(coalesce.(y_surv_raw, 0))
-            X_surv = prepare_wave_features(wave_surv, surv_ignore_cols, include_wave)
+            X_surv = prepare_wave_features(wave_surv, surv_include_cols, include_wave)
             for col in names(X_surv)
                 eltype(X_surv[!, col]) <: AbstractFloat && replace!(X_surv[!, col], NaN => -1.0)
             end
