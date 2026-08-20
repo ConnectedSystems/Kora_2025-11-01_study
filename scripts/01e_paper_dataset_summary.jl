@@ -302,8 +302,8 @@ println(io, """
 # ─── Table 1 (paper.qmd include) ──────────────────────────────────────────────
 #
 # Body of "Table 1. Overview of factors assessed in the sensitivity analysis".
-# The 12 rows must stay in one-to-one correspondence with the factors surviving
-# `growth_ignore_cols` / `surv_ignore_cols` in common.jl — if a factor is added to
+# The 12 rows must stay in one-to-one correspondence with the factors in
+# `growth_include_cols` / `surv_include_cols` in common.jl — if a factor is added to
 # or removed from the SA, this list changes with it.
 #
 # Cell convention (mirrors the table caption):

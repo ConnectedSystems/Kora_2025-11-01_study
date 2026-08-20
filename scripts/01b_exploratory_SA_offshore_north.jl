@@ -56,17 +56,8 @@ for reg_scale in region_scale
         all_y_surv[ismissing.(all_y_surv), :] .= 0
         all_y_surv = Int64.(all_y_surv)
 
-        ignore_cols = [g for g in growth_ignore_cols if g in propertynames(all_growth)]
-        select!(
-            all_growth,
-            Not(ignore_cols)
-        )
-
-        ignore_cols = [g for g in surv_ignore_cols if g in propertynames(all_surv)]
-        select!(
-            all_surv,
-            Not(ignore_cols)
-        )
+        select!(all_growth, intersect(growth_include_cols, propertynames(all_growth)))
+        select!(all_surv, intersect(surv_include_cols, propertynames(all_surv)))
 
         cleanup_features!(all_growth)
         cleanup_features!(all_surv)
@@ -128,17 +119,8 @@ for reg_scale in region_scale
                 Int64.(tmp.surv)
             end
 
-            ignore_cols = [g for g in surv_ignore_cols if g in propertynames(X_surv)]
-            select!(
-                X_surv,
-                Not(ignore_cols)
-            )
-
-            ignore_cols = [g for g in growth_ignore_cols if g in propertynames(X_growth)]
-            select!(
-                X_growth,
-                Not(ignore_cols)
-            )
+            select!(X_surv, intersect(surv_include_cols, propertynames(X_surv)))
+            select!(X_growth, intersect(growth_include_cols, propertynames(X_growth)))
 
             cleanup_features!(X_surv)
             cleanup_features!(X_growth)

@@ -111,8 +111,7 @@ function prepare_growth_data(model_results)
     all_y_growth = all_growth.est_1yo_growth
     diameters = Float64.(all_growth.diam)
 
-    ignore_cols = [g for g in growth_ignore_cols if g in propertynames(all_growth)]
-    select!(all_growth, Not(ignore_cols))
+    select!(all_growth, intersect(growth_include_cols, propertynames(all_growth)))
     cleanup_features!(all_growth)
     rename_for_display!(all_growth)
 
@@ -131,8 +130,7 @@ function prepare_survival_data(model_results)
     all_y_surv = Int64.(all_y_surv)
     diameters = Float64.(all_surv.diam_mort)
 
-    ignore_cols = [g for g in surv_ignore_cols if g in propertynames(all_surv)]
-    select!(all_surv, Not(ignore_cols))
+    select!(all_surv, intersect(surv_include_cols, propertynames(all_surv)))
     cleanup_features!(all_surv)
     rename_for_display!(all_surv)
 

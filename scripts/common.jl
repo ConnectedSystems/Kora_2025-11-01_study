@@ -26,60 +26,24 @@ FIG_DIR = joinpath(@__DIR__, "..", "figs")
 EXT_DATA_DIR = joinpath(@__DIR__, "..", "..", "data")
 DPI = 300 / 96  # desired unit / pixels per inch
 
-# Unnecessary/correlated factors to remove
-surv_ignore_cols = [
-    :class_train, :class_test, :class_train_mean, :class_test_mean, :surv_logclass,
-    :logdiam, Symbol("days_t1.t2"), :cluster, :bleaching_scores, :cscape_group, :Cscape_group,
-    :surv, :diam, :diamnext, :survival_use, :growth_use, :class_test_std,
-    :class_train_std, :depth_category, :depth_cat, :dataset, :water_clarity,
-    :site_new, :transition, :plot, :size, :sizenext, :reef, :reef_name, :site, :site_code,
-    :clarified_note_2023_july, Symbol("clarified_note_2023.1"),
-    :clarified_note_2021, :clarified_note_2022, :clarified_note_2023,
-    :date_2021, :date_2022, :date_2023,
-    :coral_cover_2021, :coral_cover_2022, :coral_cover_2023,
-    :acro_table_cover, :acro_corym_cover, :corym_non_acro_cover,
-    :small_massive_cover, :large_massive_cover, :total_coral_cover,
-    :est_1yo_growth, :growth_rate,
-    # Response-derived (and duplicate) columns carried by the pipeline CSVs under the
-    # `*_cm` naming. `diam_t2_cm` *is* the growth response and the rest are functions
-    # of it, so retaining them leaks the outcome into the sensitivity analysis;
-    # `diam_t1_cm` duplicates `diam`/`diam_mort`.
-    :diam_t1_cm, :diam_t2_cm, :area_growth_sqcm, :lin_ext_cm, :growth_rate_cm_yr,
-    :est_1yr_diam_cm,
-    :n_days_temp, :date_t1, :date_t2, :ereefs_temp_date, :psal_mean_mean, :psal_mean_median,
-    :n_days_psal, :cspd_mean_mean, :cspd_mean_median, :n_days_cspd, :wave_hs_mean,
-    :wave_hs_median,
-    :n_days_waves, :par_dli_mean, :par_dli_median, :n_days_par,
-    :temp_mean_median, :temp_max_median, :temp_mean_mean, :temp_max_mean,
-    :depth_m, :depth_min_mean, :depth_min_median, :depth_max_mean, :depth_max_median, :depth_range_mean, :depth_range_median,
-    :data_source_csv, :ocn_site_code, :survey_year, :n_days_depth,
-    :colony_id
+# Explicit include-lists for the PAWN feature matrix. Chosen over a deny-list
+# because a deny-list silently admits any new pipeline column into the
+# sensitivity analysis unless someone remembers to blacklist it — this nearly
+# happened with `depth_gapfilled` itself. An include-list fails safe: a new
+# column is simply absent from PAWN until someone deliberately adds it here.
+#
+# Verified via a live `Kora.process_ecorrap_models` run (offshore_north)
+# against the current EcoRRAP data.
+# `wave_hs_mean` is deliberately excluded here (sparse coverage) but is added
+# conditionally by 01c's wave-subset analysis.
+growth_include_cols = [
+    :diam, :depth_gapfilled, :ereefs_temp_max, :ereefs_temp_mean,
+    :functional_group, :habitat_type, :plot_lat, :plot_lon, :taxa, :wave_ubed90,
 ]
 
-growth_ignore_cols = [
-    :class_train, :class_test, :class_train_mean, :class_test_mean, :surv_logclass,
-    :logdiam, Symbol("days_t1.t2"), :cluster, :bleaching_scores, :cscape_group, :Cscape_group,
-    :surv, :diamnext, :survival_use, :growth_use, :class_test_std,
-    :class_train_std, :depth_category, :depth_cat, :dataset, :water_clarity,
-    :site_new, :transition, :plot, :logdiam, :growth, :lin_ext, :size, :sizenext, :reef, :reef_name, :site, :site_code,
-    :clarified_note_2023_july, Symbol("clarified_note_2023.1"),
-    :clarified_note_2021, :clarified_note_2022, :clarified_note_2023,
-    :date_2021, :date_2022, :date_2023,
-    :coral_cover_2021, :coral_cover_2022, :coral_cover_2023,
-    :acro_table_cover, :acro_corym_cover, :corym_non_acro_cover,
-    :small_massive_cover, :large_massive_cover, :total_coral_cover,
-    :est_1yo_growth, :growth_rate,
-    # Response-derived (and duplicate) columns — see note on surv_ignore_cols above.
-    :diam_t1_cm, :diam_t2_cm, :area_growth_sqcm, :lin_ext_cm, :growth_rate_cm_yr,
-    :est_1yr_diam_cm,
-    :n_days_temp, :date_t1, :date_t2, :ereefs_temp_date, :psal_mean_mean, :psal_mean_median,
-    :n_days_psal, :cspd_mean_mean, :cspd_mean_median, :n_days_cspd, :wave_hs_mean,
-    :wave_hs_median,
-    :n_days_waves, :par_dli_mean, :par_dli_median, :n_days_par,
-    :temp_mean_median, :temp_max_median, :temp_mean_mean, :temp_max_mean,
-    :depth_m, :depth_min_mean, :depth_min_median, :depth_max_mean, :depth_max_median, :depth_range_mean, :depth_range_median,
-    :data_source_csv, :ocn_site_code, :survey_year, :n_days_depth,
-    :colony_id
+surv_include_cols = [
+    :diam_mort, :depth_gapfilled, :ereefs_temp_max, :ereefs_temp_mean,
+    :functional_group, :habitat_type, :plot_lat, :plot_lon, :taxa, :wave_ubed90,
 ]
 
 ENSEMBLE_PARAM_NAMES = [
@@ -135,17 +99,16 @@ const _DISPLAY_RENAMES = Dict(
     :cscape_group         => :functional_group,
     :diam                 => :diameter,
     :diam_mort            => :diameter,
-    :depth_cont           => Symbol("Observed Depth (m)"),
+    :depth_gapfilled      => Symbol("Gapfilled Depth (m)"),
     :plot_uid             => :plot,
-    :site_uid             => :site,
+    :reef_habitat         => :site,
     :ubed90_median        => Symbol("Bottom Stress"),
     :temp                 => :ipm_temperature,
     :temp_max_mean        => :logger_temperature_mean_max,
     :temp_mean_mean       => :logger_temperature_mean_mean,
-    :habitat_area         => :habitat,
+    :habitat_type         => :habitat,
     # Environmental covariates — explicit human-readable labels
     :wave_ubed90          => Symbol("Bottom Stress"),
-    :depth_bathy_m        => Symbol("Modelled Depth (m)"),
     :depth_m              => Symbol("Depth (m)"),
     :depth_cat            => Symbol("Depth Category"),
     :ereefs_temp_mean     => Symbol("eReefs Temperature Mean"),
@@ -154,12 +117,25 @@ const _DISPLAY_RENAMES = Dict(
     :colony_id            => :colony,
     :lat                  => :latitude,
     :lon                  => :longitude,
+    :plot_lat             => :latitude,
+    :plot_lon             => :longitude,
     :taxa                 => :taxon,
 )
 
 function rename_for_display!(df::DataFrame)
     cols = propertynames(df)
-    pairs = [old => new for (old, new) in _DISPLAY_RENAMES if old in cols]
+    # Skip a pair if its target name is already taken by another column --
+    # the source column is left as-is and picked up by the underscore
+    # fallback pass below instead of erroring in rename!. Guards against
+    # e.g. a future column colliding with `habitat_type => habitat`.
+    occupied = Set(string.(cols))
+    pairs = Pair{Symbol,Symbol}[]
+    for (old, new) in _DISPLAY_RENAMES
+        old in cols || continue
+        string(new) ∈ occupied && continue
+        push!(pairs, old => new)
+        push!(occupied, string(new))
+    end
     isempty(pairs) || rename!(df, pairs...)
 
     # Fallback: any column name still containing underscores gets underscores
@@ -193,8 +169,8 @@ function plot_pawn_heatmap(
     Si::AbstractDimArray,
     title::String;
     stats::Vector{Symbol}=[:mean, :std],
-    fig_size::Tuple{Int,Int}=(800, 286),
-    xticklabelrotation::Real=π / 8
+    fig_size::Tuple{Int,Int}=(900, 420),
+    xticklabelrotation::Real=π / 4
 )
     # Sort factors by mean PAWN index — slice scalar At() to avoid At(vector) ambiguity
     factor_order = sortperm(collect(Si[PAWNᵢ=At(:mean)]); rev=true)
@@ -220,6 +196,7 @@ function plot_pawn_heatmap(
     ax.titlesize = 14
     ax.title = title
 
+    resize_to_layout!(f)
     return f
 end
 
