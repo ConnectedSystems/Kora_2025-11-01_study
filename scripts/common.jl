@@ -37,12 +37,12 @@ DPI = 300 / 96  # desired unit / pixels per inch
 # `wave_hs_mean` is deliberately excluded here (sparse coverage) but is added
 # conditionally by 01c's wave-subset analysis.
 growth_include_cols = [
-    :diam, :depth_gapfilled, :ereefs_temp_max, :ereefs_temp_mean,
+    :diam, :depth_cont, :ereefs_temp_max, :ereefs_temp_mean,
     :functional_group, :habitat_type, :plot_lat, :plot_lon, :taxa, :wave_ubed90,
 ]
 
 surv_include_cols = [
-    :diam_mort, :depth_gapfilled, :ereefs_temp_max, :ereefs_temp_mean,
+    :diam_mort, :depth_cont, :ereefs_temp_max, :ereefs_temp_mean,
     :functional_group, :habitat_type, :plot_lat, :plot_lon, :taxa, :wave_ubed90,
 ]
 
@@ -97,9 +97,9 @@ end
 const _DISPLAY_RENAMES = Dict(
     :Cscape_group         => :functional_group,
     :cscape_group         => :functional_group,
-    :diam                 => :diameter,
-    :diam_mort            => :diameter,
-    :depth_gapfilled      => Symbol("Gapfilled Depth (m)"),
+    :diam                 => Symbol("Initial Diameter"),
+    :diam_mort            => Symbol("Initial Diameter"),
+    :depth_cont           => Symbol("Depth (m)"),
     :plot_uid             => :plot,
     :reef_habitat         => :site,
     :ubed90_median        => Symbol("Bottom Stress"),

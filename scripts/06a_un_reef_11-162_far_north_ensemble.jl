@@ -15,10 +15,10 @@ reef_config = ReefConfig(;
 )
 
 file_paths = CalibrationDataPaths(;
-    dhw_scenarios=joinpath(OUTPUT_DIR, "dhw_scens.nc"),
+    dhw_scenarios=joinpath(OUTPUT_DIR, "dhw", "dhw_scens.nc"),
     canonical_reefs=joinpath(OUTPUT_DIR, "rrap_canonical_2025-07-15-T10-48-29.gpkg"),
-    growth_models=joinpath(OUTPUT_DIR, "offshore_north", "overall", "offshore_north_growth_models.dat"),
-    survival_models=joinpath(OUTPUT_DIR, "offshore_north", "overall", "offshore_north_survival_models.dat"),
+    growth_models=joinpath(OUTPUT_DIR, "offshore_north", "overall", "offshore_north_growth_models.json"),
+    survival_models=joinpath(OUTPUT_DIR, "offshore_north", "overall", "offshore_north_survival_models.json"),
     output_dir=OUTPUT_DIR,
     figure_dir=FIG_DIR
 )
@@ -92,8 +92,8 @@ function run_calibration(
 
     # Load models
     @info "Loading growth and survival models..."
-    calib_growth_models = deserialize(file_paths.growth_models)
-    calib_survival_models = deserialize(file_paths.survival_models)
+    calib_growth_models = Kora.load_models(file_paths.growth_models)
+    calib_survival_models = Kora.load_models(file_paths.survival_models)
 
     # Initialize model
     @info "Initializing reef state..."
@@ -276,14 +276,14 @@ function run_calibration(
             end
         end
 
-        Kora.run_example!(
+        Kora.run_model!(
             reef_state, env_conditions;
             recruits=Float32(recruitment_proportion),
             self_seed=Float32(self_seeding_proportion),
             rng=rng
         )
     else
-        Kora.run_example!(reef_state, env_conditions; rng=rng)
+        Kora.run_model!(reef_state, env_conditions; rng=rng)
     end
 
     # Provisional cover — replaced below with best ensemble member once available.

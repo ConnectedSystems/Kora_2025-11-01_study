@@ -217,15 +217,15 @@ function draw_scale_bar!(ax, bbox; km=50, pad_frac=0.05, fontsize=12, halign=:le
 end
 
 # ── Draw Natural Earth land polygons clipped to a bbox ────────────────────────
-function draw_land!(ax, land_fc, bbox)
+function draw_land!(ax, land_fc, bbox; strokecolor=(:black, 0.4), strokewidth=0.5)
     for feature in land_fc
         isnothing(feature.geometry) && continue
         xs, ys = polygon_coords(feature.geometry)
         isempty(xs) && continue
         any(bbox.lon_min .<= xs .<= bbox.lon_max) || continue
         any(bbox.lat_min .<= ys .<= bbox.lat_max) || continue
-        poly!(ax, Point2f.(xs, ys); color=:burlywood,
-            strokecolor=(:sienna, 0.6), strokewidth=0.5)
+        poly!(ax, Point2f.(xs, ys); color=:saddlebrown,
+            strokecolor=strokecolor, strokewidth=strokewidth)
     end
 end
 
@@ -308,7 +308,7 @@ function draw_australia_inset!(fig, position; land_fc, gbr_lon=GBR_LON, gbr_lat=
         backgroundcolor=:aliceblue)
     hidedecorations!(ax_i)
     au_bbox = (lon_min=112.0, lon_max=156.0, lat_min=-44.0, lat_max=-8.0)
-    draw_land!(ax_i, land_fc, au_bbox)
+    draw_land!(ax_i, land_fc, au_bbox; strokecolor=:black, strokewidth=1.2)
     bx = [gbr_lon[1], gbr_lon[2], gbr_lon[2], gbr_lon[1], gbr_lon[1]]
     by = [gbr_lat[1], gbr_lat[1], gbr_lat[2], gbr_lat[2], gbr_lat[1]]
     lines!(ax_i, bx, by; color=:red, linewidth=2)

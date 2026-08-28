@@ -65,13 +65,13 @@ function interval_stats(df::DataFrame)
     )
 end
 
-"""Unique (reef × habitat) combinations — the paper's 'monitoring sites'."""
-n_sites(df) = nrow(unique(df[:, [:reef, :site_code, :habitat]]))
+"""Unique (reef × habitat_type) combinations — the paper's 'monitoring sites'."""
+n_sites(df) = nrow(unique(df[:, [:reef, :site_code, :habitat_type]]))
 
-"""Unique (reef × habitat × depth_cat × plot) combinations — the paper's 'plots'."""
-n_plots(df) = nrow(unique(df[:, [:reef, :site_code, :habitat, :depth_cat, :plot]]))
+"""Unique (reef × habitat_type × depth_cat × plot) combinations — the paper's 'plots'."""
+n_plots(df) = nrow(unique(df[:, [:reef, :site_code, :habitat_type, :depth_cat, :plot]]))
 
-hab_zones(df) = sort(unique(skipmissing(df.habitat)))
+hab_zones(df) = sort(unique(skipmissing(df.habitat_type)))
 
 ZONE_LABEL = Dict("back" => "back", "flank" => "flank", "front" => "front", "lagoon" => "lagoon")
 
@@ -142,8 +142,8 @@ for (label, st) in [("Offshore North", on), ("Torres Strait", ts)]
     | Transitions (survey years) | $(st.transitions) |
     | Growth observations | $(st.growth_n) |
     | Survival observations | $(st.survival_n) |
-    | Monitoring sites (reef × habitat) | $(st.sites) |
-    | Plots (reef × habitat × plot) | $(st.plots) |
+    | Monitoring sites (reef × habitat_type) | $(st.sites) |
+    | Plots (reef × habitat_type × plot) | $(st.plots) |
     | Taxa — growth | $(st.taxa_g) |
     | Taxa — survival | $(st.taxa_s) |
     | Habitat types | $(st.habitats) |
@@ -186,9 +186,10 @@ println(io, """
 
 Sourced from the pipeline CSVs (post lin_ext and taxa filters).
 Diameter ranges from `diam` (growth obs.) and `diam_mort` (survival obs.).
-Depth: Offshore North uses plot-level survey depth (`depth_cont`) from the IPM photogrammetry
-file; Torres Strait uses continuous logger mean depth (`depth_min_mean`) from EcoRRAP in-situ
-loggers (available at Masig Reef only). Torres Strait does not have a `depth_cont` equivalent.
+Depth: both regions use plot-level survey depth (`depth_cont`) from the IPM photogrammetry
+file, now available for all reefs including Masig. Torres Strait also has continuous logger
+mean depth (`depth_min_mean`) from EcoRRAP in-situ loggers (available at Masig Reef only) for
+comparison.
 Temperature: mean of daily maxima for ON (`temp_max_mean`), mean of daily means for TS
 (`temp_mean_mean`). Colony ID is only tracked in the Torres Strait photogrammetry dataset.
 """)
@@ -209,7 +210,7 @@ function _site_stat(df, site_col, val_col)
 end
 
 function _hab_str(df)
-    codes = sort(unique(skipmissing(df.habitat)))
+    codes = sort(unique(skipmissing(df.habitat_type)))
     return "$(length(codes)) ($(join(codes, "; ")))"
 end
 
@@ -224,16 +225,19 @@ on_s_diam = _fmt_cr(_vals(on_s, :diam_mort))
 ts_g_diam = _fmt_cr(_vals(ts_g, :diam))
 ts_s_diam = _fmt_cr(_vals(ts_s, :diam_mort))
 
-# plots — unique physical plot labels within each dataset
-on_plot_n  = _nu(on_g, :plot)
-ts_quad_n  = _nu(ts_g, :quadrat_number)
+# plots — composite physical plot identity (reef × site_code × habitat_type × depth_cat ×
+# plot/quadrat label), matching the narrative's plot counts and the summary table above
+# (on.plots / ts.plots from region_stats). TS quadrats nest cleanly within this composite
+# plot definition, so both regions are now reported on the same "plot" basis.
+on_plot_n = on.plots
+ts_plot_n = ts.plots
 
 # depth — ON: plot-level survey depth (`depth_cont`); TS: continuous logger mean depth
 # (`depth_min_mean`, available at Masig Reef only). Categorical `depth_cat` is not used here.
 function _depth_stat(g, s, depth_col::Symbol)
     rows = unique(vcat(
-        dropmissing(g[:, [:site_code, :habitat, depth_col]]),
-        dropmissing(s[:, [:site_code, :habitat, depth_col]])
+        dropmissing(g[:, [:site_code, :habitat_type, depth_col]]),
+        dropmissing(s[:, [:site_code, :habitat_type, depth_col]])
     ))
     return _fmt_cr(rows[!, depth_col])
 end
@@ -251,15 +255,15 @@ ts_temp_str = _site_stat(
     :site_code, :temp_mean_mean
 )
 
-# habitat
+# habitat_type
 on_hab_str = _hab_str(on_g)
 ts_hab_str = _hab_str(ts_g)
 
-# lon / lat (site-level)
-on_lon_str = _site_stat(unique(dropmissing(on_g[:, [:site_code, :lon]])), :site_code, :lon)
-on_lat_str = _site_stat(unique(dropmissing(on_g[:, [:site_code, :lat]])), :site_code, :lat)
-ts_lon_str = _site_stat(unique(dropmissing(ts_g[:, [:site_code, :lon]])), :site_code, :lon)
-ts_lat_str = _site_stat(unique(dropmissing(ts_g[:, [:site_code, :lat]])), :site_code, :lat)
+# lon / lat (plot-level; renamed from bare :lon/:lat after data update)
+on_lon_str = _site_stat(unique(dropmissing(on_g[:, [:site_code, :plot_lon]])), :site_code, :plot_lon)
+on_lat_str = _site_stat(unique(dropmissing(on_g[:, [:site_code, :plot_lat]])), :site_code, :plot_lat)
+ts_lon_str = _site_stat(unique(dropmissing(ts_g[:, [:site_code, :plot_lon]])), :site_code, :plot_lon)
+ts_lat_str = _site_stat(unique(dropmissing(ts_g[:, [:site_code, :plot_lat]])), :site_code, :plot_lat)
 
 # site / reef
 on_site_n = _nu(on_g, :site_code)
@@ -277,7 +281,7 @@ ts_taxa_s_n = _nu(ts_s, :taxa)
 on_fg_n = _nu(on_g, :Cscape_group)
 ts_fg_n = _nu(ts_g, :Cscape_group)
 
-# colony_id (TS photogrammetry only; ON quadrat-based so N/A)
+# colony_id (TS photogrammetry only; ON plot-based so N/A)
 on_cid = "N/A"
 ts_cid_g = _nu(ts_g, :colony_id)
 ts_cid_s = _nu(ts_s, :colony_id)
@@ -286,10 +290,10 @@ println(io, """
 | Identifier | Description | Offshore North<br>Count / [Range] | Torres Strait<br>Count / [Range] |
 |------------|-------------|-----------------------------------|----------------------------------|
 | `diam` / `diam_mort` | Estimated coral diameter at observation (cm): `diam` for growth obs., `diam_mort` for mortality obs. | Growth: $(on_g_diam)<br>Survival: $(on_s_diam) | Growth: $(ts_g_diam)<br>Survival: $(ts_s_diam) |
-| `plot` / `quadrat` | Specific monitored plot (ON) or quadrat (TS) | $(on_plot_n) | $(ts_quad_n) |
+| `plot` | Physical monitoring plot (reef × site × habitat × depth × plot/quadrat label) | $(on_plot_n) | $(ts_plot_n) |
 | `depth` | Continuous depth (m): ON uses plot-level survey depth (`depth_cont`) from IPM photogrammetry file; TS uses logger mean depth (`depth_min_mean`) from EcoRRAP in-situ loggers (Masig Reef only) | $(on_depth_str) | $(ts_depth_str) |
 | `temp` | Mean of daily temperature (°C) from EcoRRAP in-situ loggers; daily-max mean for ON, daily mean for TS | $(on_temp_str) | $(ts_temp_str) |
-| `habitat` | Reef habitat zone code (`habitat`) | $(on_hab_str) | $(ts_hab_str) |
+| `habitat_type` | Reef exposure category (`habitat_type`, e.g. "back"/"front") | $(on_hab_str) | $(ts_hab_str) |
 | `lon` | Longitude (decimal degrees) | $(on_lon_str) | $(ts_lon_str) |
 | `lat` | Latitude (decimal degrees) | $(on_lat_str) | $(ts_lat_str) |
 | `site` | Reef-level site code | $(on_site_n) | $(ts_site_n) |
@@ -337,9 +341,9 @@ function t1_obs(df::DataFrame, c::Symbol)
 end
 
 """Zone count with human-readable labels, e.g. `4 (back; flank; front; lagoon)`."""
-function t1_habitat(df::DataFrame)
-    _present(df, :habitat) || return "N/A"
-    z = sort(_uvals(df, :habitat))
+function t1_habitat_type(df::DataFrame)
+    _present(df, :habitat_type) || return "N/A"
+    z = sort(_uvals(df, :habitat_type))
     return "$(length(z)) ($(join(z, "; ")))"
 end
 
@@ -382,9 +386,9 @@ table1_rows = T1Row[
         t1_unique(ts_g, :functional_group; with_range=false),
     ),
     T1Row(
-        "`habitat`", "Reef habitat zone code",
+        "`habitat_type`", "Reef exposure category",
         "EcoRRAP site/habitat annotations",
-        t1_habitat(on_g), t1_habitat(ts_g),
+        t1_habitat_type(on_g), t1_habitat_type(ts_g),
     ),
     t1_row(
         "`quadrat_number`", "Monitored plot (ON) or quadrat (TS) identifier",
@@ -400,14 +404,14 @@ table1_rows = T1Row[
     t1_row(
         "`ereefs_temp_mean`",
         "Mean of daily mean sea water temperature (°C) from eReefs GBR1 Hydro v2 " *
-        "(~1 km resolution) at −9 m depth",
+        "(~1 km resolution) at −9 m depth over EcoRRAP survey period",
         "eReefs hydrodynamic model",
         t1_unique(on_g, :ereefs_temp_mean), t1_unique(ts_g, :ereefs_temp_mean),
     ),
     t1_row(
         "`ereefs_temp_max`",
         "Mean of daily maximum sea water temperature (°C) from eReefs GBR1 Hydro v2 " *
-        "(~1 km resolution) at −9 m depth",
+        "(~1 km resolution) at −9 m depth over EcoRRAP survey period",
         "eReefs hydrodynamic model",
         t1_unique(on_g, :ereefs_temp_max), t1_unique(ts_g, :ereefs_temp_max),
     ),
@@ -422,14 +426,14 @@ table1_rows = T1Row[
         t1_unique(on_g, :depth_bathy_m), t1_unique(ts_g, :depth_bathy_m),
     ),
     t1_row(
-        "`lon`", "Longitude (decimal degrees)",
+        "`plot_lon`", "Longitude (decimal degrees)",
         "EcoRRAP site geospatial metadata",
-        t1_unique(on_g, :lon), t1_unique(ts_g, :lon),
+        t1_unique(on_g, :plot_lon), t1_unique(ts_g, :plot_lon),
     ),
     t1_row(
-        "`lat`", "Latitude (decimal degrees)",
+        "`plot_lat`", "Latitude (decimal degrees)",
         "EcoRRAP site geospatial metadata",
-        t1_unique(on_g, :lat), t1_unique(ts_g, :lat),
+        t1_unique(on_g, :plot_lat), t1_unique(ts_g, :plot_lat),
     ),
 ]
 

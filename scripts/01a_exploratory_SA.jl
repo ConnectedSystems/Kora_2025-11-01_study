@@ -94,7 +94,7 @@ function plot_sensitivity_heatmap(
     ax.xticks = (1:n_bins, string.(round.(bin_details[:, 2]; digits=2)))
     ax.title = "$(titlecase(replace(region, "_" => " "))) - $(analysis_type)"
     ax.ylabel = "Factors"
-    ax.xlabel = "Mean Diameter of Bin\n($(per_bin_sample) samples per bin)"
+    ax.xlabel = "Mean Initial Diameter of Bin\n($(per_bin_sample) samples per bin)"
 
     Colorbar(f[1, 2]; limits=(-0.1, max(maximum(g_bin_sorted), 1.0)), label="PAWN Index")
 

@@ -87,11 +87,11 @@ gl_moore_cons = fig_cons[1, 1] = GridLayout()
 gl_masig_cons = fig_cons[2, 1] = GridLayout()
 
 hm_cons = plot_pawn_heatmap_into!(
-    gl_moore_cons, moore_cons_pawn, "Constrained SA — Moore Reef";
+    gl_moore_cons, moore_cons_pawn, "Constrained SA - Moore Reef";
     stats=stats, colorrange=cons_cr
 )
 plot_pawn_heatmap_into!(
-    gl_masig_cons, masig_cons_pawn, "Constrained SA — Masig";
+    gl_masig_cons, masig_cons_pawn, "Constrained SA - Masig";
     stats=stats, colorrange=cons_cr
 )
 
@@ -116,11 +116,11 @@ gl_moore_unc = fig_unc[1, 1] = GridLayout()
 gl_masig_unc = fig_unc[2, 1] = GridLayout()
 
 hm_unc = plot_pawn_heatmap_into!(
-    gl_moore_unc, moore_unc_pawn, "Unconstrained SA — Moore Reef";
+    gl_moore_unc, moore_unc_pawn, "Unconstrained SA - Moore Reef";
     stats=stats, colorrange=unc_cr
 )
 plot_pawn_heatmap_into!(
-    gl_masig_unc, masig_unc_pawn, "Unconstrained SA — Masig";
+    gl_masig_unc, masig_unc_pawn, "Unconstrained SA - Masig";
     stats=stats, colorrange=unc_cr
 )
 
