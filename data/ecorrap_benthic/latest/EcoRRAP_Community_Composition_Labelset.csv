@@ -1,0 +1,139 @@
+﻿CODE,DESCRIPTION,GROUP,SUBGROUP,DEFINITION
+ACS,Acropora.Arborescent.Staghorn,HC,Acropora.Arborescent.Staghorn,Branches form successively at about same length and angle. Cylindrical branches from a few centimeters to >2m long.
+,,,,Unruly thickets and tangles
+,,,,CAAB 11 290913
+ACX,Acropora.Bottlebrush,HC,Acropora.Branching.Other,"Hispidose, small sub-branches radiate from main branches. “Bristles on all sides of a central stem”"
+,,,,CAAB 11 290904
+AC_Bran_OTH,Acropora.Branching.Other,HC,Acropora.Branching.Other,"Caespitose growth forms, other intermediate forms"
+ACO_OTH,Acropora.corymbose.other,HC,Acropora.corymbose,"Branches originate from a central growing point (central stem attachement to reef). Compact, dense, bushy. Branches not fused."
+,,,,"Includes caespito-corymbose morphology, some potential overlap with Acropora Branching Other class (e.g. caespitose)."
+,,,,CAAB 11 290910
+ACD,Acropora.digitate,HC,Acropora.digitate,"Small, thicker, finger-like branches. Minimal secondary branches and wider base than corymbose colonies, potentially no clear stem base."
+,,,,CAAB 11 290909
+ACT,Acropora.table,HC,Acropora.tab,"Flat, table-like structures of fused branches. Typically have a pedestal or may be attached on the side to the edge of the reef. May be tiered."
+,,,,CAAB 11 290911
+G_AST,Astreopora,HC,Massive,All Astreopora species with a massive/submassive morphology
+COL,Columnar,HC,Columnar,"Thick, tall pillar-like columns arise from a base. May include some colonies of knobbly columns (e.g. Isopora, Psammocora, some Pavona)."
+,,,,CAAB 11 290915
+G_DIP,Diploastrea,HC,Massive,Massive/submassive morphology of Diploastrea
+G_ECH,Echinopora,HC,Foliose.Plate-like,All Echinopora species with a foliose or plating morphology.
+,,,,May be some overlap with encrusting class
+ENC,Encrusting,HC,Encrusting,"Lichen-like, form low, thin, spreading colonies, adhering to the substrate"
+,,,,CAAB 11 290908
+ENC_OTH_MON,Encrusting.Montipora,HC,Encrusting,"Encrusting Montipora, may include sections of a colony that displays multiple morphologies (e.g. encrusting and branching)"
+ENC_OTH_POR,Encrusting.Porites,HC,Encrusting,"Encrusting Porites, may include species whose whole colony has an encrusting morphology (e.g. P. lichen, P. vaughani) or sections of colonies with mixed morphologies (e.g. the encrusting part of P. cf. rus)"
+MAS_FL,Flower-like.Massive,HC,Massive,Species with fleshy polyps extended during the day.
+,,,,"Includes long, fleshy, flower-like polyps (may or may not be extended) suh as Goniopora, Alveopora, Bernardpora as well as bubble-like polyps (Physogyra, Plerogyra, etc.). Growth form generally massive (sometimes considered submassive)."
+FOL_OTH_L,Foliose.Lettuce-like.other.,HC,Foliose.Lettuce-like,"Dividing, leafy fronds with unifacial (e.g. Leptoseris) or bifacial (e.g. Pavona) fronds."
+FOL_OTH_P,Foliose.Plate-like.other.,HC,Foliose.Plate-like,"Broad, flattened, unifacial plates attached to reef substrate from base. May form tiers, whorls, or vases in multi-layered arrangement"
+F_FUN_CMR,Fungiidae.free-living,HC,Freeliving,"Solitary discs. Round, oval, elongate, dome-shaped, or irregular shaped."
+,,,,CAAB 298000
+G_GOS,Goniastrea,HC,Massive,All Goniastrea species with a massive/submassive morphology
+G_LEP,Leptoria,HC,Massive,All Leptoria species with a massive/submassive morphology
+G_LOB,Lobophyllia,HC,Massive,All Lobophyllia species with a massive/submassive morphology (includes taxa previously known as Symphyllia)
+MAS_OTH,Massive.other,HC,Massive,Includes massive/submassive morphs of genera not in their own category.
+G_MON,Montipora,HC,Foliose.Plate-like,All Montipora species with a foliose or plating morphology.
+,,,,May be some overlap with encrusting class
+CB_OTH_ARB,other.Branching.Non-acropora.Arborescent,HC,other.Branching.Non-acropora,"Longer, extended branches with no axial corallite"
+,,,,"E.g. Echinopora, Merulina, Hydnophora, Heliopora"
+CB_OTH_C,other.Branching.Non-acropora.Coarse,HC,other.Branching.Non-acropora,"Short, stumpy, or irregular branches"
+,,,,Mix of stumpy branches and foliose-like base
+,,,,"E.g. Australogyra, Pectinia, Isopora brueggmanni, Psammocora, Caulastrea"
+CB_OTH_F,other.Branching.Non-acropora.fine,HC,other.Branching.Non-acropora,"Thin, delicate branches"
+,,,,"E.g. Branching Galaxea, Anacropora, Cyphastrea"
+G_PAC,Pachyseris,HC,Foliose.Plate-like,All Pachyeris species with a large foliose or plating morphology
+G_PLA,Platygyra,HC,Massive,All Platygyra species with a massive/submassive morphology
+,,,,"May include similar looking species that are difficult to differentiate in images (e.g. Paragoniastrea, Favites )"
+S_POC_ACU,Pocillopora.acuta,HC,Pocillopora,
+S_POC_DAM,Pocillopora.damicornis,HC,Pocillopora,
+S_POC_EYD,Pocillopora.eydouxi,HC,Pocillopora,Taxonomy updated to P. grandis
+G_POC_OTH,Pocillopora.other,HC,Pocillopora,"P. meandrina, etc."
+,,,,When species level identification is uncertain
+S_POC_VER,Pocillopora.verrucosa,HC,Pocillopora,Probably some overlap with Pocillopora other (e.g. P. meandrina)
+G_POR_B_C,Porites.branching.coarse,HC,Massive,All coarse/stumpy branching and foliose-like base Porites species
+,,,,P. rus and similar
+G_POR_B_F,Porites.branching.fine,HC,Massive,All fine branching Porites species
+,,,,P. cylindrica and similar
+G_POR,Porites.massive,HC,Massive,Complex of ~7 Porites species with massive/submassive morphologies
+G_SER,Seriatopora.hystrix,HC,Seriatopora.hystrix,All Seriatopora species
+G_STY,Stylophora.pistillata,HC,Stylophora.pistillata,All Stylophora species
+SCB,Soft.Coral.Branching,SC,Soft.Coral.Branching,Branches in 3-dimensional space. Fleshy arborescent species as well as non-fleshy branches in 3-dimensions.
+,,,,May be some overlap with 'massive' category with species that can form compact colonies as well as long fleshy tentacles.
+,,,,May also include some black corals
+,,,,CAAB 11 168902
+SCF,Soft.coral.Fan,SC,Soft.coral.Fan,Branches typically in a single plane.
+,,,,CAAB 11 168912
+SCM,Soft.coral.Massive,SC,Soft.coral.Massive,"Low tabular mounds that can have lobate, digitate, or ridged surfaces."
+,,,,CAAB 11 168920
+,,,,"Family Alcyoniidae (Sinularia, Sacrophyton, Lobophyton, Dampia, Cladiella)"
+SCP,Soft.coral.extended.polyp,SC,Soft.coral.extended.polyp,"Massive growth form with vertical, red hard calcareous tubes (Tubipora). Polyps may be extended, hiding skeleton and appearing like some hard or soft corals."
+,,,,"Also includes other long poylp, flower-like soft corals"
+,,,,CAAB 11 201901
+SC_OTH,Soft.coral.other,SC,Soft.coral.other,"Soft corals not defined in other classes (e.g. sea pens, indistinguishable growth forms)"
+SCW,Soft.coral.Whip,SC,Soft.coral.Whip,"Single stem, whip coral."
+,,,,CAAB 168917
+ANE,Anemone,OT,Other,"Includes true anemones (fleshy base with ring of tentacles around a central mouth,"
+,,,,"fly trap, four lobed), tube anemones, and corallimorphs."
+,,,,CAAB 11 229000
+MOB_C,Clams,OT,Other,All species within the class Bivalvia
+,,,,CAAB 23 199000
+MOB_COT,COT,OT,Other,Crown of thorns starfish.
+MOB_FS,Feather.stars,OT,Other,All species within class Crinoidea except basket stars.
+,,,,CAAB 25 001000
+FC_B,Fire.Coral.Branching,OT,FireCoral,"Genus Millepora, branching"
+,,,,CAAB 11 077906
+FC_ENC,Fire.Coral.Encrusting,OT,FireCoral,"Genus Millepora, flattened, encrusting growth form."
+,,,,CAAB 11 077907
+FC_MAS,Fire.Coral.Massive,OT,FireCoral,"Genus Millepora, massive and submassive growth forms."
+,,,,CAAB 11 077907
+HYD,Hydroids,OT,Other,"Feathery, commonly planar, and usually branching cnidarians."
+,,,,CAAB 11 001000
+MOB_OTH,Mobile.other,OT,Other,"Includes any other mobile biota (sea urchins, basket stars, brittle star, fish, etc.)."
+MOB_SC,Sea.cucumber,OT,Other,All species within class Holothuroidea.
+,,,,CAAB 25 400000
+MOB_SF,Starfish,OT,Other,All species within class Asteroidea except crown of thorns starfish (COTS).
+,,,,CAAB 25 102000
+ZOA,Zoanthid,OT,Other,
+SPC,Sponge.Crust,SP,Sponge.Crust,Form a crust over the substrate.
+,,,,CAAB 10 000902
+SPE,Sponge.Erect,SP,Sponge.Erect,Clearly stand up from substrate with colony height significantly greater than width. Appears solid in cross section.
+,,,,"Can be flat (laminar), branching, stalked, or simple (thin rods)."
+,,,,CAAB 10 000912
+SPH,Sponge.hollow,SP,Sponge.hollow,"Cup, funnel, barrel, or tube-shaped. Typically smaller attachment base than girth of colony but may be some exceptions."
+,,,,CAAB 10 000909
+SPM,Sponge.Massive,SP,Sponge.Massive,"Massive, lumpy, or irregular shaped. Generally large but also includes small ball-shaped sponges."
+,,,,CAAB 10 000903
+SP_OTH,Sponge.Other,SP,Sponge.Other,Any other unique form that does not fit into other sponge categories.
+AAC,Articulate.Calcareous,A,Articulate.Calcareous,"Jointed or segmented, calcified red or green algae (does not include crustose coralline algae)."
+,,,,CAAB 80 300911
+,,,,"Halimeda, Corallina spp., Rhodo"
+ACF,Coarse.Branching,A,Coarse.Branching,"Vertical growth habit, branches more robust of broad blades. Includes red, green, and brown algae"
+,,,,CAAB 80 300903
+CA,Coralline.Algae,A,Coralline.Algae,Crustose coralline algae.
+,,,,"Red/pink (may appear lighter), crust-like, thin, growing flattened and closely adhering to the substratum."
+,,,,CAAB 80 300934
+AL,Laminate,A,Laminate,"Plate-like or lobed red, green, or brown algae."
+,,,,CAAB 80 300918
+,,,,"Padina, Lobophora"
+A_OTH,Other.Alga,A,Other.Alga,Any other algae that does not fit into other classes.
+AS,Sheet-like/membraneous,A,Sheet-like/membraneous,"Thin, delicate and often transluscent. Flattened and sheet-like structure, potentially with ill-defined branching."
+,,,,Thicker layers of turfing algae that are not suitable for coral settlement. 
+,,,,"Red, green, or brown algae."
+,,,,CAAB 80 300922
+,,,,"Dictyota, Ulva, thick turf layers/algal mats (cyanobacteria mats)"
+TA,Turf,A,Turf,Consolidated substrate covered with turfing algae
+,,,,Any consolidated reef surface (except CCA) that can be settled by coral  that may be covered with a fine layer of turf algae (consolidated rubble as separate category that may include fine layer of turf).
+,,,,Substrate suitable for coral settlement as well as some thicker turf
+MDB,Marker.Dumbbells,AB,Abiotic,"Reference markers used for photogrammetric monitoring (dumbbells, triads, color cards, any other reference object)"
+MST,Marker.Sphere.Tree,AB,Abiotic,"Reference markers used for photogrammetric monitoring and model alignment. Includes star pickets, clamps, and any part of sphere tree (e.g. stem or ball)"
+RC,Rubble.Consolidate,AB,Abiotic,Consolidated fragments of dead coral colonies.
+,,,,May include fine layer of turf algae.
+,,,,CAAB 82 001009
+RL,Rubble.loose,AB,Abiotic,"Loose fragments of dead coral colonies or shell, often in piles or scattered on sand or consolidated substrate."
+,,,,CAAB 82 001009
+S,Sand,AB,Abiotic,"Fine, grainy substrate that may contain fine fragments of other material."
+,,,,Includes coarse and fine sand.
+,,,,Larger fragments of dead coral or shell fall under “Rubble Loose”.
+,,,,CAAB 82 001005
+Un_ID,Unidentifiable,AB,Abiotic,Image clarity prevents the identification of substrate
+WA,Water,AB,Abiotic,"Blue, open ocean"

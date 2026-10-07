@@ -1,0 +1,12 @@
+scenario,year,null95,n_above_null95,ext_rank,ext_above_null95,self_rank,self_above_null95,n_best_decile,ext_rank_best_decile,self_rank_best_decile
+with,2021,0.9043,5,22,false,20,false,820,4,8
+with,2022,0.8906,6,17,false,19,false,820,4,8
+with,2023,0.8926,6,14,false,15,false,820,4,8
+with,2024,0.8992,7,10,false,9,false,820,4,8
+without,2021,0.9043,5,22,false,20,false,820,4,8
+without,2022,0.904,5,22,false,20,false,820,4,7
+without,2023,0.9025,5,22,false,19,false,820,4,8
+without,2024,0.9037,6,20,false,18,false,820,3,6
+difference,2022,0.9241,10,1,true,2,true,820,2,1
+difference,2023,0.914,10,2,true,1,true,820,2,1
+difference,2024,0.9084,10,2,true,1,true,820,1,2

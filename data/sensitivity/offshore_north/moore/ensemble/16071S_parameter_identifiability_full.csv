@@ -1,0 +1,24 @@
+parameter,CV,range_ratio,MAD,rMAD
+Density,0.189,0.409,1.218,0.139
+Prop: Tab Acro,0.471,0.819,0.065,0.385
+Prop: Cor Acro,0.241,0.532,0.055,0.151
+Prop: Cor non-Acro,0.544,0.884,0.042,0.378
+Prop: Sm Mass,0.582,0.909,0.08,0.521
+Prop: Lg Mass,0.772,0.978,0.066,0.671
+Size μ: Tab Acro,0.377,0.89,0.375,0.136
+Size μ: Cor Acro,0.196,0.543,0.306,0.139
+Size μ: Cor non-Acro,0.661,0.882,0.519,0.547
+Size μ: Sm Mass,0.511,0.899,0.694,0.419
+Size μ: Lg Mass,0.485,0.801,0.369,0.261
+Size σ: Tab Acro,0.74,0.915,0.316,0.554
+Size σ: Cor Acro,0.526,0.825,0.107,0.329
+Size σ: Cor non-Acro,0.606,0.923,0.702,0.56
+Size σ: Sm Mass,0.366,0.782,0.434,0.283
+Size σ: Lg Mass,0.566,0.921,0.514,0.467
+Scaler: Tab Acro,0.14,0.369,0.032,0.095
+Scaler: Cor Acro,0.091,0.254,0.086,0.056
+Scaler: Cor non-Acro,0.103,0.198,0.057,0.064
+Scaler: Sm Mass,0.106,0.199,0.086,0.086
+Scaler: Lg Mass,0.108,0.198,0.072,0.077
+External Recruitment,0.747,0.912,0.032,0.654
+Self-seeding,0.768,0.914,0.042,0.636

@@ -1,0 +1,17 @@
+Australian Institute of Marine Science (AIMS). (2023). EcoRRAP Benthic Data 2021-2024. https://apps.aims.gov.au/metadata/view/48de2e3c-52a9-42f0-84ac-eb13baab0b07, accessed 03-May-2026.
+
+Attribution-Non Commercial 3.0 Australia
+
+
+Resource Summary
+This dataset contains benthic data generated from imagery collected by divers conducting photogrammetric monitoring at EcoRRAP sites (see SOP #14: Reef monitoring sampling methods | AIMS). These images used are the underlying images of the EcoRRAP 3D models and are used here to assess benthic community composition within EcoRRAP plots. 
+
+A subset of images were extracted for this dataset by using a python script that filtered for image position within 3D models, to enable the best spatial stratification, as well as for aspect to maximise extraction of images facing the benthos. A 1000-pixel bounding box was applied to the edges of the image to remove areas of distortion (original image size was 8256x5504 pixels). Images were extracted for 352 plots in 2021, 333 plots in 2022, 325 plots in 2023, and 191 plots in 2024. Missing plots from each year are not available due to either logitsical or processing constraints.
+
+Twelve images per plot (72 square meters, or 12 x 6m, total in each plot) with 50 points per image were analysed in ReefCloud. Images from a subset of plots in 2021, 2022, and 2023 were manually annotated in ReefCloud to train an automated image analysis model and the remaining plots were analysed using the automated model. Images were annotated using the EcoRRAP Community Composition Label Set which is included in this data package. 
+
+Important Note for 2024 data: data is only available from reefs in the EcoRRAP Central Cluster and the Torres Strait Cluster. Please also be aware that no additional human annotations have been done on 2024 images, therefore all 2024 points are solely machine generated.
+
+The ReefCloud ML model was trained with a goal of achieving 80% accuracy for identification of benthos. Training proceeded as an iterative process with model diagnostics assessed after each round of training. Once performance targets were reached across course taxonomic classes, targeted annotation was undertaken to improve the model performance for specific classes. In January 2026, a full quality check of all human annotated points was undertaken to ensure optimal model performance.
+
+Please read all associated README files prior to using this dataset as they provide critical context about the generation and use of this data. 
