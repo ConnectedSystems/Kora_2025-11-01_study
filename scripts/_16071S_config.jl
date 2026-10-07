@@ -6,7 +6,7 @@ reef_config = ReefConfig(;
     area=Float32(72.0 * 4),  # size of each EcoRRAP transect/plot times number of plots
     depth=9.0,  # Assumed average (12 + 5) / 2
     density=10,  # Initial guess of density and proportions
-    initial_proportions=[0.1f0, 0.4f0, 0.25f0, 0.05f0, 0.2f0],
+    initial_proportions=[0.25f0, 0.25f0, 0.25f0, 0.15f0, 0.1f0],
     exclude_years=[2018, 2020, 2022, 2023],  # two obs after bleaching and two years of ecorrap
     disturbance_years=[2017]  # major bleaching event
 )
@@ -76,11 +76,11 @@ param_bounds = (;
     # Growth scalers — free range. Multiply the per-step Euler growth increment
     # each year, so may compensate for annualization bias in the fitted growth
     # curves rather than being redundant.
-    scalers_tab_acro=(0.25, 1.75),
-    scalers_cor_acro=(0.25, 1.75),
-    scalers_cor_non_acro=(0.25, 1.75),
-    scalers_sm_mass=(0.25, 1.75),
-    scalers_lrg_mass=(0.25, 1.75),
+    scalers_tab_acro=(0.2, 1.2),
+    scalers_cor_acro=(0.7, 1.7),
+    scalers_cor_non_acro=(0.8, 1.2),
+    scalers_sm_mass=(0.8, 1.2),
+    scalers_lrg_mass=(0.8, 1.2),
 
     # Recruitment
     recruitment=(0.001, 0.2),
