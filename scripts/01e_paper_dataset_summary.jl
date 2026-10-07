@@ -185,7 +185,7 @@ println(io, """
 ## Study variable summary (pipeline-filtered)
 
 Sourced from the pipeline CSVs (post lin_ext and taxa filters).
-Diameter ranges from `diam` (growth obs.) and `diam_mort` (survival obs.).
+Diameter ranges from `diam` (start-of-interval size, for both growth and survival obs.).
 Depth: both regions use plot-level survey depth (`depth_cont`) from the IPM photogrammetry
 file, now available for all reefs including Masig. Torres Strait also has continuous logger
 mean depth (`depth_min_mean`) from EcoRRAP in-situ loggers (available at Masig Reef only) for
@@ -219,11 +219,11 @@ function _reef_str(df)
     return "$(length(reefs)) ($(join(titlecase.(reefs), "; ")))"
 end
 
-# diam / diam_mort
+# diam
 on_g_diam = _fmt_cr(_vals(on_g, :diam))
-on_s_diam = _fmt_cr(_vals(on_s, :diam_mort))
+on_s_diam = _fmt_cr(_vals(on_s, :diam))
 ts_g_diam = _fmt_cr(_vals(ts_g, :diam))
-ts_s_diam = _fmt_cr(_vals(ts_s, :diam_mort))
+ts_s_diam = _fmt_cr(_vals(ts_s, :diam))
 
 # plots — composite physical plot identity (reef × site_code × habitat_type × depth_cat ×
 # plot/quadrat label), matching the narrative's plot counts and the summary table above
@@ -289,7 +289,7 @@ ts_cid_s = _nu(ts_s, :colony_id)
 println(io, """
 | Identifier | Description | Offshore North<br>Count / [Range] | Torres Strait<br>Count / [Range] |
 |------------|-------------|-----------------------------------|----------------------------------|
-| `diam` / `diam_mort` | Estimated coral diameter at observation (cm): `diam` for growth obs., `diam_mort` for mortality obs. | Growth: $(on_g_diam)<br>Survival: $(on_s_diam) | Growth: $(ts_g_diam)<br>Survival: $(ts_s_diam) |
+| `diam` | Estimated coral diameter at start of observation interval (cm), for both growth and survival obs. | Growth: $(on_g_diam)<br>Survival: $(on_s_diam) | Growth: $(ts_g_diam)<br>Survival: $(ts_s_diam) |
 | `plot` | Physical monitoring plot (reef × site × habitat × depth × plot/quadrat label) | $(on_plot_n) | $(ts_plot_n) |
 | `depth` | Continuous depth (m): ON uses plot-level survey depth (`depth_cont`) from IPM photogrammetry file; TS uses logger mean depth (`depth_min_mean`) from EcoRRAP in-situ loggers (Masig Reef only) | $(on_depth_str) | $(ts_depth_str) |
 | `temp` | Mean of daily temperature (°C) from EcoRRAP in-situ loggers; daily-max mean for ON, daily mean for TS | $(on_temp_str) | $(ts_temp_str) |
@@ -306,13 +306,12 @@ println(io, """
 # ─── Table 1 (paper.qmd include) ──────────────────────────────────────────────
 #
 # Body of "Table 1. Overview of factors assessed in the sensitivity analysis".
-# The 12 rows must stay in one-to-one correspondence with the factors in
+# The 9 rows must stay in one-to-one correspondence with the factors in
 # `growth_include_cols` / `surv_include_cols` in common.jl — if a factor is added to
 # or removed from the SA, this list changes with it.
 #
 # Cell convention (mirrors the table caption):
-#   - `diam`/`diam_mort`: observation count and range over all observations.
-#   - `taxa`: unique count, reported separately for growth and survival.
+#   - `diam`: observation count and range over all observations.
 #   - everything else: unique-value count over the growth dataset, with the range
 #     across those unique values where the factor is continuous.
 #   - a factor with no non-missing values in a region is reported as N/A.
@@ -365,23 +364,16 @@ end
 
 table1_rows = T1Row[
     T1Row(
-        "`diam` / `diam_mort`",
-        "Estimated coral diameter at observation (cm): `diam` for growth obs., " *
-        "`diam_mort` for mortality obs.",
+        "`diam`",
+        "Estimated coral diameter at start of observation interval (cm), for both " *
+        "growth and survival obs.",
         "EcoRRAP photogrammetry colony tracking",
-        "Growth: $(t1_obs(on_g, :diam))<br>Survival: $(t1_obs(on_s, :diam_mort))",
-        "Growth: $(t1_obs(ts_g, :diam))<br>Survival: $(t1_obs(ts_s, :diam_mort))",
-    ),
-    T1Row(
-        "`taxa`",
-        "Individual taxonomic group",
-        "EcoRRAP taxonomic colony labels",
-        "Growth: $(taxa_n(on_g))<br>Survival: $(taxa_n(on_s))",
-        "Growth: $(taxa_n(ts_g))<br>Survival: $(taxa_n(ts_s))",
+        "Growth: $(t1_obs(on_g, :diam))<br>Survival: $(t1_obs(on_s, :diam))",
+        "Growth: $(t1_obs(ts_g, :diam))<br>Survival: $(t1_obs(ts_s, :diam))",
     ),
     t1_row(
         "`functional_group`", "Morphological grouping of taxa",
-        "Kora group mapping from taxa",
+        "EcoRRAP taxa mapped to functional groups (@stbl-12)",
         t1_unique(on_g, :functional_group; with_range=false),
         t1_unique(ts_g, :functional_group; with_range=false),
     ),
@@ -391,14 +383,8 @@ table1_rows = T1Row[
         t1_habitat_type(on_g), t1_habitat_type(ts_g),
     ),
     t1_row(
-        "`quadrat_number`", "Monitored plot (ON) or quadrat (TS) identifier",
-        "EcoRRAP monitoring design metadata",
-        t1_unique(on_g, :quadrat_number; with_range=false),
-        t1_unique(ts_g, :quadrat_number; with_range=false),
-    ),
-    t1_row(
-        "`depth_cont`", "Plot-level survey depth (m) from IPM photogrammetry",
-        "EcoRRAP IPM photogrammetry metadata",
+        "`depth_cont`", "Plot-level survey depth (m) from photogrammetry",
+        "EcoRRAP photogrammetry metadata",
         t1_unique(on_g, :depth_cont), t1_unique(ts_g, :depth_cont),
     ),
     t1_row(
@@ -417,13 +403,8 @@ table1_rows = T1Row[
     ),
     t1_row(
         "`wave_ubed90`", "Wave-induced bottom current speed (m/s; 90th percentile)",
-        "eReefs hydrodynamic model",
+        "Wave model [@callaghanGreatBarrierReef2023; @callaghanWaveModellingProxy2015]",
         t1_unique(on_g, :wave_ubed90), t1_unique(ts_g, :wave_ubed90),
-    ),
-    t1_row(
-        "`depth_bathy_m`", "Modelled bathymetric depth (m)",
-        "eReefs hydrodynamic model",
-        t1_unique(on_g, :depth_bathy_m), t1_unique(ts_g, :depth_bathy_m),
     ),
     t1_row(
         "`plot_lon`", "Longitude (decimal degrees)",

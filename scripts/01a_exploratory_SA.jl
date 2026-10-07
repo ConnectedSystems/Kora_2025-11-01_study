@@ -128,7 +128,7 @@ function prepare_survival_data(model_results)
     all_y_surv = all_surv.surv
     all_y_surv[ismissing.(all_y_surv)] .= 0
     all_y_surv = Int64.(all_y_surv)
-    diameters = Float64.(all_surv.diam_mort)
+    diameters = Float64.(all_surv.diam)
 
     select!(all_surv, intersect(surv_include_cols, propertynames(all_surv)))
     cleanup_features!(all_surv)
