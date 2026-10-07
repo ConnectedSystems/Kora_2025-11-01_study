@@ -84,17 +84,23 @@ function site_annual_cover(df::DataFrame, site_code::String)::DataFrame
         transect_covers = Dict(g => Float64[] for g in GROUP_ORDER)
 
         for row in eachrow(grp)
+            transect_totals = Dict(g => 0.0 for g in GROUP_ORDER)
+            transect_has_data = Dict(g => false for g in GROUP_ORDER)
             for (col, fg) in col_to_group
                 fg ∈ GROUP_ORDER || continue
                 v = row[col]
                 ismissing(v) && continue
-                push!(transect_covers[fg], Float64(v))
+                transect_totals[fg] += Float64(v)
+                transect_has_data[fg] = true
+            end
+            for g in GROUP_ORDER
+                transect_has_data[g] && push!(transect_covers[g], transect_totals[g])
             end
         end
 
-        # Average across transects; functional group total per transect is the
-        # sum of its constituent species, so we accumulate per-species values
-        # and take the mean across transects.  Where a group has no data, emit 0.
+        # Each transect's functional-group total is the sum of its constituent
+        # species; group cover is then the mean of those per-transect totals
+        # across transects. Where a group has no data, emit 0.
         row_vals = Any[year]
         for g in GROUP_ORDER
             vals = transect_covers[g]
