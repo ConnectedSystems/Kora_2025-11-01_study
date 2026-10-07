@@ -1,8 +1,8 @@
 """
 Self-describing HDF5 storage for analysis results.
 
-Included by `scripts/common.jl` and, standalone, by `scripts/extract_pawn_results.jl`,
-so it must not depend on anything beyond HDF5 and DimensionalData.
+Included by `scripts/common.jl` and so it must not depend on anything beyond
+HDF5 and DimensionalData.
 """
 
 using HDF5
