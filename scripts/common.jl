@@ -23,7 +23,6 @@ include(joinpath(@__DIR__, "..", "src", "result_io.jl"))
 
 OUTPUT_DIR = joinpath(@__DIR__, "..", "data")
 FIG_DIR = joinpath(@__DIR__, "..", "figs")
-EXT_DATA_DIR = joinpath(@__DIR__, "..", "..", "data")
 DPI = 300 / 96  # desired unit / pixels per inch
 
 # Explicit include-lists for the PAWN feature matrix. Chosen over a deny-list
@@ -38,12 +37,12 @@ DPI = 300 / 96  # desired unit / pixels per inch
 # conditionally by 01c's wave-subset analysis.
 growth_include_cols = [
     :diam, :depth_cont, :ereefs_temp_max, :ereefs_temp_mean,
-    :functional_group, :habitat_type, :plot_lat, :plot_lon, :taxa, :wave_ubed90,
+    :functional_group, :habitat_type, :plot_lat, :plot_lon, :wave_ubed90,
 ]
 
 surv_include_cols = [
-    :diam_mort, :depth_cont, :ereefs_temp_max, :ereefs_temp_mean,
-    :functional_group, :habitat_type, :plot_lat, :plot_lon, :taxa, :wave_ubed90,
+    :diam, :depth_cont, :ereefs_temp_max, :ereefs_temp_mean,
+    :functional_group, :habitat_type, :plot_lat, :plot_lon, :wave_ubed90,
 ]
 
 ENSEMBLE_PARAM_NAMES = [
@@ -73,6 +72,14 @@ ENSEMBLE_PARAM_NAMES = [
 ]
 
 function cleanup_features!(X::DataFrame)
+    # A factor with no data in this subset (e.g. `wave_ubed90` in the Torres Strait) would
+    # otherwise become a constant NaN/sentinel column and be scored by PAWN as a factor.
+    empty_cols = [n for n in names(X) if all(x -> ismissing(x) || (x isa AbstractFloat && isnan(x)), X[!, n])]
+    if !isempty(empty_cols)
+        @info "Dropping factors with no data from feature matrix" empty_cols
+        select!(X, Not(empty_cols))
+    end
+
     drop_cols = String[]
     for n in names(X)
         T = nonmissingtype(eltype(X[!, n]))
@@ -98,7 +105,6 @@ const _DISPLAY_RENAMES = Dict(
     :Cscape_group         => :functional_group,
     :cscape_group         => :functional_group,
     :diam                 => Symbol("Initial Diameter"),
-    :diam_mort            => Symbol("Initial Diameter"),
     :depth_cont           => Symbol("Depth (m)"),
     :plot_uid             => :plot,
     :reef_habitat         => :site,
