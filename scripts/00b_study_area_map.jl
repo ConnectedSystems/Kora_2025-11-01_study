@@ -5,7 +5,10 @@ GBR + Torres Strait overview highlighting the EcoRRAP study reefs,
 with close-up insets for each study region.
 
 Requires the canonical reefs geopackage to have been placed in the study data
-directory (already present as rrap_canonical_*.gpkg).
+directory (already present as rrap_canonical_*.gpkg). Torres Strait study reef
+locations are taken directly from `ecorrap_unified.parquet` (site_code
+TSAU/TSMA/TSDU) rather than name-matched against the geopackage, since that
+geopackage has no reliable entries for those three reefs.
 """
 
 include(joinpath(@__DIR__, "common.jl"))
@@ -16,21 +19,39 @@ using NaturalEarth
 
 # ── Data paths ─────────────────────────────────────────────────────────────────
 gpkg_path = joinpath(@__DIR__, "..", "data", "rrap_canonical_2025-07-15-T10-48-29.gpkg")
-on_csv = joinpath(EXT_DATA_DIR, "EcoRRAP data for IPM_250624.csv")
-ts_csv = joinpath(EXT_DATA_DIR, "ecorrap_adult_juv_combined_2021_2023_24062025.csv")
+on_csv = joinpath(@__DIR__, "..", "data", "EcoRRAP data for IPM_250624.csv")
+unified_parquet_path = joinpath(@__DIR__, "..", "data", "ecorrap_unified.parquet")
 
 # ── Load canonical reefs ───────────────────────────────────────────────────────
 reefs = GDF.read(gpkg_path)
+
+# ── Torres Strait reef coordinates ────────────────────────────────────────────
+# Name-matching the three TS study reefs against the canonical geopackage picks
+# up the wrong polygons ("Akone Reef" and "Au-Masig Reef" are, per their
+# coordinates, different reefs many km away from the actual survey sites; the
+# geopackage has no Dungeness entry at all). Use the reef centroid recorded in
+# the unified EcoRRAP dataset instead, keyed by site_code, which is authoritative.
+unified_df = DataFrame(Parquet2.Dataset(unified_parquet_path))
+function ts_reef_coord(site_code)
+    sub = unified_df[unified_df.site_code.==site_code, :]
+    isempty(sub) && error("No rows found for site_code $site_code in $unified_parquet_path")
+    lons = unique(skipmissing(sub.reef_lon))
+    lats = unique(skipmissing(sub.reef_lat))
+    (length(lons) == 1 && length(lats) == 1) ||
+        error("Ambiguous reef_lon/reef_lat for site_code $site_code")
+    return (lon=lons[1], lat=lats[1])
+end
+const AUKANE_COORD = ts_reef_coord("TSAU")
+const MASIG_COORD = ts_reef_coord("TSMA")
+const DUNGENESS_COORD = ts_reef_coord("TSDU")
 
 # ── Load EcoRRAP observation data ─────────────────────────────────────────────
 on_data = CSV.read(
     on_csv, DataFrame; types=Dict(:LAT => Float64, :LONG => Float64), missingstring="NA"
 )
-ts_data = CSV.read(ts_csv, DataFrame; missingstring="NA")
 
-# Unique reef names from each dataset (lowercase for matching)
+# Unique reef names (lowercase for matching)
 on_study_reefs = lowercase.(unique(on_data.Reef))
-ts_study_reefs = lowercase.(unique(ts_data.REEF))
 
 # ── Tag reefs in geopackage by role ───────────────────────────────────────────
 reef_name_lc = lowercase.(reefs.reef_name)
@@ -38,41 +59,34 @@ reef_name_lc = lowercase.(reefs.reef_name)
 # Normalise CSV reef names: replace underscores with spaces so "lady_musgrave"
 # matches "lady musgrave reef (...)" in the geopackage.
 on_study_norm = replace.(on_study_reefs, "_" => " ")
-ts_study_norm = replace.(ts_study_reefs, "_" => " ")
 
-# "aukane" is spelled "akone" in the canonical geopackage — add the alias so it
-# is highlighted in the TS close-up.  "dungeness" has no geopackage entry.
-push!(ts_study_norm, "akone")
-
-# Geographic bounds for each study region — used to disambiguate reefs that
-# share names across regions (e.g. "chicken" reef exists in both areas).
+# Geographic bounds for the Offshore North study region — used to disambiguate
+# reefs that share names with reefs elsewhere (e.g. "chicken" reef also exists
+# in the Torres Strait).
 const ON_LON_RANGE = (144.5, 148.5)
 const ON_LAT_RANGE = (-18.5, -14.0)
-const TS_LON_RANGE = (141.0, 145.5)
-const TS_LAT_RANGE = (-11.5, -8.5)
 
 on_in_region =
     (reefs.LON .>= ON_LON_RANGE[1]) .& (reefs.LON .<= ON_LON_RANGE[2]) .&
     (reefs.LAT .>= ON_LAT_RANGE[1]) .& (reefs.LAT .<= ON_LAT_RANGE[2])
-ts_in_region =
-    (reefs.LON .>= TS_LON_RANGE[1]) .& (reefs.LON .<= TS_LON_RANGE[2]) .&
-    (reefs.LAT .>= TS_LAT_RANGE[1]) .& (reefs.LAT .<= TS_LAT_RANGE[2])
 
 on_reef_mask =
     [any(occursin(r, n) for r in on_study_norm) for n in reef_name_lc] .& on_in_region
-ts_reef_mask =
-    [any(occursin(r, n) for r in ts_study_norm) for n in reef_name_lc] .& ts_in_region
 
-# The two featured reefs for inset labels
+# Torres Strait study reefs are NOT identified via geopackage name-matching --
+# see the coordinate block above. `ts_reef_mask` stays all-false so the TS
+# close-up only draws unhighlighted background reefs from the geopackage; the
+# three study reefs themselves are plotted from AUKANE_COORD / MASIG_COORD /
+# DUNGENESS_COORD instead.
+ts_reef_mask = falses(nrow(reefs))
+ts_lons = [AUKANE_COORD.lon, MASIG_COORD.lon, DUNGENESS_COORD.lon]
+ts_lats = [AUKANE_COORD.lat, MASIG_COORD.lat, DUNGENESS_COORD.lat]
+
+# The featured reef for the ON inset label (TS featured reef uses MASIG_COORD).
 moore_mask = occursin.(r"(?i)moore", reefs.reef_name)
-masig_mask = occursin.(r"(?i)masig", reefs.reef_name)
 
 # Additional reefs requested by reviewer
 lizard_mask = occursin.(r"(?i)lizard.*(island|reef)", reefs.reef_name) .& on_in_region
-akone_mask = occursin.(r"(?i)akone", reefs.reef_name) .& ts_in_region
-# Dungeness has no geopackage entry — coordinates are approximate, verify against source data
-const DUNGENESS_LON = 142.38
-const DUNGENESS_LAT = -10.62
 
 # ── Helper: extract exterior ring of a polygon geometry ───────────────────────
 """
@@ -132,8 +146,8 @@ function bbox_with_pad(lons, lats; pad=0.4)
     )
 end
 
-@info "Matched $(sum(on_reef_mask)) ON reefs / $(sum(ts_reef_mask)) TS reefs in geopackage"
-@info "Lizard Island matches: $(sum(lizard_mask))  |  Akone matches: $(sum(akone_mask))"
+@info "Matched $(sum(on_reef_mask)) ON reefs in geopackage; TS reefs plotted from unified dataset coordinates"
+@info "Lizard Island matches: $(sum(lizard_mask))"
 
 # ── Natural Earth land polygons (for close-up backgrounds + Australia inset) ──
 land_50m = naturalearth("land", 50)
@@ -150,8 +164,7 @@ end
 
 on_bbox = safe_bbox(reefs.LON[on_reef_mask], reefs.LAT[on_reef_mask],
     ON_LON_RANGE, ON_LAT_RANGE; pad=0.3)
-ts_bbox = safe_bbox(reefs.LON[ts_reef_mask], reefs.LAT[ts_reef_mask],
-    TS_LON_RANGE, TS_LAT_RANGE; pad=0.5)
+ts_bbox = bbox_with_pad(ts_lons, ts_lats; pad=0.5)
 
 # Expand both close-up bboxes to the same lon/lat span so panels B and C are
 # plotted at the same geographic scale (same km-per-pixel with DataAspect).
@@ -317,7 +330,7 @@ function draw_australia_inset!(fig, position; land_fc, gbr_lon=GBR_LON, gbr_lat=
 end
 
 # ── Draw the overview panel ───────────────────────────────────────────────────
-function draw_overview!(ax, df, on_mask, ts_mask, moore_mask, masig_mask)
+function draw_overview!(ax, df, on_mask, moore_mask, ts_lons, ts_lats, masig_coord)
     # All reef centroids
     scatter!(ax, df.LON, df.LAT;
         color=COL_ALL, markersize=ALL_SIZE, label="All reefs")
@@ -325,14 +338,14 @@ function draw_overview!(ax, df, on_mask, ts_mask, moore_mask, masig_mask)
     # Study reef centroids
     scatter!(ax, df.LON[on_mask], df.LAT[on_mask];
         color=COL_ON, markersize=STUDY_SIZE, label="Offshore North reefs")
-    scatter!(ax, df.LON[ts_mask], df.LAT[ts_mask];
+    scatter!(ax, ts_lons, ts_lats;
         color=COL_TS, markersize=STUDY_SIZE, label="Torres Strait reefs")
 
     # Featured reefs
     scatter!(ax, df.LON[moore_mask], df.LAT[moore_mask];
         color=COL_ON, marker=:star5, markersize=STAR_SIZE,
         strokecolor=:white, strokewidth=1, label="Moore Reef")
-    scatter!(ax, df.LON[masig_mask], df.LAT[masig_mask];
+    scatter!(ax, [masig_coord.lon], [masig_coord.lat];
         color=COL_TS, marker=:star5, markersize=STAR_SIZE,
         strokecolor=:white, strokewidth=1, label="Masig Reef")
 
@@ -395,19 +408,14 @@ ax1_ov = Axis(
 )
 
 draw_land!(ax1_ov, land_50m, gbr_bbox)
-draw_overview!(ax1_ov, reefs, on_reef_mask, ts_reef_mask, moore_mask, masig_mask)
+draw_overview!(ax1_ov, reefs, on_reef_mask, moore_mask, ts_lons, ts_lats, MASIG_COORD)
 if any(moore_mask)
     i = findfirst(moore_mask)
     text!(ax1_ov, reefs.LON[i], reefs.LAT[i] + 0.15;
         text="Moore", fontsize=11, align=(:center, :bottom))
 end
-if any(masig_mask)
-    i = findfirst(masig_mask)
-    text!(ax1_ov, reefs.LON[i], reefs.LAT[i] + 0.15;
-        text="Masig", fontsize=11, align=(:center, :bottom))
-end
-scatter!(ax1_ov, [DUNGENESS_LON], [DUNGENESS_LAT];
-    color=COL_TS, markersize=STUDY_SIZE)
+text!(ax1_ov, MASIG_COORD.lon, MASIG_COORD.lat + 0.15;
+    text="Masig", fontsize=11, align=(:center, :bottom))
 draw_scale_bar!(ax1_ov, gbr_bbox; km=200, halign=:right)
 draw_city_labels!(
     ax1_ov, places_50m, gbr_bbox; scalerank_max=6, coast_fc=coast_50m, max_coast_km=100.0
@@ -424,22 +432,22 @@ ax1_ts = Axis(
     backgroundcolor=:aliceblue
 )
 draw_land!(ax1_ts, land_50m, ts_bbox)
-draw_closeup!(ax1_ts, reefs, ts_bbox, ts_reef_mask, masig_mask;
+# ts_reef_mask is all-false (see coordinate block above) so this only draws
+# unhighlighted background reefs from the geopackage; the study reefs are
+# plotted from the unified-dataset coordinates below.
+draw_closeup!(ax1_ts, reefs, ts_bbox, ts_reef_mask, falses(nrow(reefs));
     study_color=COL_TS, study_label="Torres Strait reefs", feat_label="Masig Reef")
-if any(masig_mask)
-    i = findfirst(masig_mask)
-    text!(ax1_ts, reefs.LON[i], reefs.LAT[i] + 0.08;
-        text="Masig", fontsize=11, align=(:center, :bottom))
-end
-if any(akone_mask)
-    i = findfirst(akone_mask)
-    text!(ax1_ts, reefs.LON[i] + 0.08, reefs.LAT[i];
-        text="Aukane", fontsize=11, align=(:left, :center))
-end
-scatter!(ax1_ts, [DUNGENESS_LON], [DUNGENESS_LAT];
-    color=COL_TS, markersize=STUDY_SIZE)
-text!(ax1_ts, DUNGENESS_LON + 0.04, DUNGENESS_LAT + 0.04;
-    text="Dungeness", fontsize=11, align=(:left, :bottom))
+scatter!(ax1_ts, [AUKANE_COORD.lon, DUNGENESS_COORD.lon], [AUKANE_COORD.lat, DUNGENESS_COORD.lat];
+    color=(COL_TS, 0.9), markersize=9, label="Torres Strait reefs")
+text!(ax1_ts, AUKANE_COORD.lon + 0.08, AUKANE_COORD.lat;
+    text="Aukane", fontsize=11, align=(:left, :center))
+text!(ax1_ts, DUNGENESS_COORD.lon + 0.04, DUNGENESS_COORD.lat - 0.04;
+    text="Dungeness", fontsize=11, align=(:left, :top))
+scatter!(ax1_ts, [MASIG_COORD.lon], [MASIG_COORD.lat];
+    color=COL_TS, marker=:star5, markersize=STAR_SIZE,
+    strokecolor=:white, strokewidth=1, label="Masig Reef")
+text!(ax1_ts, MASIG_COORD.lon, MASIG_COORD.lat + 0.08;
+    text="Masig", fontsize=11, align=(:center, :bottom))
 draw_scale_bar!(ax1_ts, ts_bbox; km=50)
 Label(fig1[1, 2, TopLeft()], "(B)"; fontsize=18, font=:bold, padding=(4, 0, 4, 0))
 
