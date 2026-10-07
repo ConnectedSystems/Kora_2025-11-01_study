@@ -272,3 +272,83 @@ function pawn(
     # (N x 1 or 1 x D) and so ensures a vector is passed along
     return pawn(X, vec(y); S=S)
 end
+
+"""
+    temporal_pawn(X, Y, factor_names, years; S=10)::DimArray
+
+Dummy-normalized mean PAWN index (see `pawn`) of each factor (columns of `X`) on the
+output at each timestep (columns of `Y`, one row per sample). Values above zero indicate
+influence above the dummy factor. The dummy draws from the global RNG; seed it
+(`Random.seed!`) beforehand for reproducible results.
+
+# Returns
+DimArray of `factors × year`.
+"""
+function temporal_pawn(
+    X::AbstractMatrix{<:Real},
+    Y::AbstractMatrix{<:Real},
+    factor_names::Vector{String},
+    years::AbstractVector;
+    S::Int64=10
+)::DimArray
+    size(X, 1) == size(Y, 1) || throw(ArgumentError("X and Y must have one row per sample"))
+    size(Y, 2) == length(years) || throw(ArgumentError("Y must have one column per year"))
+
+    pawn_t = Matrix{Float64}(undef, size(X, 2), length(years))
+    for t in axes(Y, 2)
+        y = Float64.(Y[:, t])
+        if std(y) == 0
+            pawn_t[:, t] .= 0.0  # no variation across samples to attribute
+            continue
+        end
+        pawn_t[:, t] = pawn(X, y, factor_names; S=S)[PAWNᵢ=At(:mean)].data
+    end
+
+    return DimArray(pawn_t, (Dim{:factors}(Symbol.(factor_names)), Dim{:year}(collect(years))))
+end
+
+"""
+    mean_slice_ks(x, y; S=10)
+
+Raw (un-normalized) mean Kolmogorov–Smirnov statistic between `y` conditioned on each of `S`
+quantile slices of `x` and the unconditional `y`, i.e. the PAWN mean before dummy
+normalization.
+"""
+function mean_slice_ks(x::AbstractVector{<:Real}, y::AbstractVector{<:Real}; S::Int64=10)
+    x_q = quantile(x, 0.0:(1 / S):1.0)
+    ks = zeros(S)
+    with_logger(NullLogger()) do
+        for s in 1:S
+            sel = s == 1 ? (x_q[1] .<= x .<= x_q[2]) : (x_q[s] .< x .<= x_q[s + 1])
+            any(sel) && (ks[s] = ks_statistic(ApproximateTwoSampleKSTest(y[sel], y)))
+        end
+    end
+
+    return mean(ks)
+end
+
+"""
+    pawn_dummy_null(X, y; n_dummy=50, q=0.95, S=10, rng=Xoshiro(1))
+
+Stricter significance check than the single dummy used by `pawn`: compute the raw mean-KS
+PAWN of `n_dummy` independent random dummy factors on `y` and take their `q` quantile as the
+null threshold.
+
+# Returns
+`(threshold, raw)`, where `raw` holds each factor's (column of `X`) raw mean-KS PAWN; a factor
+is distinguishable from noise when `raw > threshold`.
+"""
+function pawn_dummy_null(
+    X::AbstractMatrix{<:Real},
+    y::AbstractVector{<:Real};
+    n_dummy::Int64=50,
+    q::Float64=0.95,
+    S::Int64=10,
+    rng::AbstractRNG=Xoshiro(1)
+)
+    N = size(X, 1)
+    raw = [mean_slice_ks(X[:, d], y; S=S) for d in axes(X, 2)]
+    null = [mean_slice_ks(randn(rng, N), y; S=S) for _ in 1:n_dummy]
+
+    return quantile(null, q), raw
+end
