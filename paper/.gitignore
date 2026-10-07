@@ -3,3 +3,6 @@ paper.docx
 eq_test.html
 eq_test_files/
 CoralFlow draft*.docx
+
+/.quarto/
+**/*.quarto_ipynb
