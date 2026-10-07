@@ -220,10 +220,39 @@ function gamma_to_dirichlet(p; G=Gamma(1))
 end
 
 """
+    dirichlet_to_latent(p)
+
+Inverse of `gamma_to_dirichlet` (with the default `Gamma(1)`) for proportions `p` that
+sum to 1: `gamma_to_dirichlet(dirichlet_to_latent(p)) ≈ p`. The latent representation is
+not unique (any positive rescaling of the Gamma quantiles gives the same proportions);
+this returns the one whose quantiles equal `p` itself.
+"""
+dirichlet_to_latent(p) = 1 .- exp.(-p)
+
+"""
+    candidate_rng(x, seed)
+
+Random number generator for evaluating parameter vector `x`, derived from `x` and `seed`.
+The same candidate and seed always yield the same random stream, independent of thread,
+evaluation order, or which candidates were evaluated before it, while distinct candidates
+receive independent streams.
+"""
+candidate_rng(x, seed::Integer) = Xoshiro(hash(x, hash(seed)))
+
+"""
     create_objective_function(reef_state, env_conditions, historic_obs, sim_indices,
-                              ref_indices, area, seed, use_scalers)
+                              ref_indices, area, seed, use_scalers;
+                              transform_proportions=true)
 
 Create objective function for calibration optimization.
+
+With `transform_proportions=true` (calibration), `x[2:6]` are latent values converted
+to proportions via `gamma_to_dirichlet`. Pass `false` when `x[2:6]` already hold
+realized proportions (e.g., stored ensemble candidates or pre-transformed SA samples),
+so they are used as-is rather than transformed a second time.
+
+Randomness comes from `candidate_rng(x, seed)`, so the objective is a deterministic
+function of `x` for a given `seed`.
 """
 function create_objective_function(
     reef_state::ReefState,
@@ -235,17 +264,20 @@ function create_objective_function(
     benthic_aligned_years::Union{BitVector,Nothing},
     benthic::Union{DataFrame,Nothing},
     seed::Int,
-    use_scalers::Bool
+    use_scalers::Bool;
+    transform_proportions::Bool=true
 )
     obs = historic_obs[ref_indices] / 100.0
     obs_μ, obs_σ = mean_and_std(obs)
 
-    rng = Random.seed!(seed)
-
     function objective(x)
         # Use Gamma distribution trick to convert candidate values to those that sum to 1.
         # A copy is necessary as values will be adjusted
-        x = vcat(x[1], gamma_to_dirichlet(x[2:6]), x[7:end])
+        x = if transform_proportions
+            vcat(x[1], gamma_to_dirichlet(x[2:6]), x[7:end])
+        else
+            copy(x)
+        end
 
         # Alternate approach: penalize invalid combinations
         # (computationally wasteful, the gamma transform is better)
@@ -253,7 +285,8 @@ function create_objective_function(
         #     return 1e10 * abs(1.0 - sum(x[2:6]))
         # end
 
-        Kora.set_population!(reef_state, x)
+        rng = candidate_rng(x, seed)
+        Kora.set_population!(reef_state, x; rng=rng)
 
         if use_scalers
             n_grps = Kora.n_groups(reef_state)
@@ -343,12 +376,13 @@ end
 """
     create_objective_pool(reef_state, env_conditions, historic_obs, sim_indices,
                           ref_indices, area, benthic_aligned_years, benthic,
-                          seed, use_scalers)
+                          seed, use_scalers; transform_proportions=true)
 
 Create a thread-safe pool of objective functions for parallel sensitivity analysis.
 Backed by `Threads.OncePerThread`, so each thread lazily builds — on first use — its
-own `create_objective_function` closure over an independent `copy` of `reef_state`
-and a unique seed offset. Safe for use with `Threads.@threads`.
+own `create_objective_function` closure over an independent `copy` of `reef_state`.
+All threads share `seed`, and randomness comes from `candidate_rng(x, seed)`, so results
+do not depend on thread assignment or evaluation order. Safe for use with `Threads.@threads`.
 
 # Arguments
 All arguments are forwarded to `create_objective_function`.
@@ -367,31 +401,39 @@ function create_objective_pool(
     benthic_aligned_years::Union{BitVector,Nothing},
     benthic::Union{DataFrame,Nothing},
     seed::Int,
-    use_scalers::Bool
+    use_scalers::Bool;
+    transform_proportions::Bool=true
 )
     return Threads.OncePerThread{Function}() do
         create_objective_function(
             copy(reef_state), env_conditions, historic_obs,
             sim_indices, ref_indices, area,
             benthic_aligned_years, benthic,
-            seed + Threads.threadid(), use_scalers
+            seed, use_scalers;
+            transform_proportions=transform_proportions
         )
     end
 end
 
 """
-    create_timeseries_function(reef_state, env_conditions, area, seed, use_scalers)
+    create_timeseries_function(reef_state, env_conditions, area, seed, use_scalers;
+                               transform_proportions=true)
 
 Create a function that runs the model and returns the full simulated coral cover
 trajectory rather than aggregating to a scalar fitness score. Shares the same
-parameter layout and transformation as `create_objective_function`, so
-`ensemble_params` columns can be passed directly.
+parameter layout and `transform_proportions` handling as `create_objective_function`.
+Stored `ensemble_params` columns hold realized proportions, so pass
+`transform_proportions=false` when running them.
 
 Thread-safe: `reef_state` is mutated in-place by `run_model!`, so each thread
-lazily gets its own `copy` and seeded RNG via `Threads.OncePerThread`.
+lazily gets its own `copy` via `Threads.OncePerThread`. By default randomness comes from
+`candidate_rng(x, seed)`, so a candidate gives the same trajectory as its evaluation by
+`create_objective_function` with the same `seed`, and total and by-group runs match.
+Pass `rng` to use a given random stream instead (e.g. to pair runs of one sample under two
+scenarios; see `recruitment_paired_runs`).
 
 # Returns
-A function `(x; return_by_group=false) → cover`, where `cover` is total cover
+A function `(x; return_by_group=false, rng=nothing) → cover`, where `cover` is total cover
 (`Vector{Float32}`, length `n_timesteps`) or per-group cover (`Matrix{Float32}`,
 `n_timesteps × n_groups`) if `return_by_group=true`.
 """
@@ -400,20 +442,24 @@ function create_timeseries_function(
     env_conditions::AbstractDimArray,
     area::Float32,
     seed::Int,
-    use_scalers::Bool
+    use_scalers::Bool;
+    transform_proportions::Bool=true
 )
     state_pool = Threads.OncePerThread{typeof(reef_state)}(() -> copy(reef_state))
-    rng_pool = Threads.OncePerThread{typeof(copy(Random.default_rng()))}() do
-        Random.seed!(copy(Random.default_rng()), seed + Threads.threadid())
-    end
 
-    function timeseries(x; return_by_group::Bool=false)
+    function timeseries(
+        x; return_by_group::Bool=false, rng::Union{Nothing,AbstractRNG}=nothing
+    )
         rs = state_pool()
-        rng = rng_pool()
 
-        x = vcat(x[1], gamma_to_dirichlet(x[2:6]), x[7:end])
+        x = if transform_proportions
+            vcat(x[1], gamma_to_dirichlet(x[2:6]), x[7:end])
+        else
+            copy(x)
+        end
+        rng = isnothing(rng) ? candidate_rng(x, seed) : rng
 
-        Kora.set_population!(rs, x)
+        Kora.set_population!(rs, x; rng=rng)
 
         if use_scalers
             n_grps = Kora.n_groups(rs)
@@ -442,6 +488,36 @@ function create_timeseries_function(
     end
 
     return timeseries
+end
+
+"""
+    recruitment_paired_runs(timeseries, X, seed) → (with, without)
+
+Run every sample (row of `X`) twice through `timeseries` (from `create_timeseries_function`
+with `use_scalers=true`): once as given, and once with both recruitment parameters (external
+recruitment `x[end - 1]` and self-seeding `x[end]`) set to zero.
+
+Both runs of sample `i` use `Xoshiro(hash(i, hash(seed)))`, so they share the initial
+population and random stream; their difference is the cover attributable to recruitment
+rather than to model noise. (The streams can still diverge once recruitment changes the
+sequence of random draws.) Returns two `n_samples × n_timesteps` matrices of total cover.
+"""
+function recruitment_paired_runs(timeseries, X::AbstractMatrix, seed::Integer)
+    n_samples = size(X, 1)
+    n_steps = length(timeseries(X[1, :]))
+    with_recruitment = Matrix{Float32}(undef, n_samples, n_steps)
+    without_recruitment = similar(with_recruitment)
+
+    Threads.@threads :dynamic for i in 1:n_samples
+        x = X[i, :]
+        with_recruitment[i, :] = timeseries(x; rng=Xoshiro(hash(i, hash(seed))))
+
+        x[end - 1] = 0.0
+        x[end] = 0.0
+        without_recruitment[i, :] = timeseries(x; rng=Xoshiro(hash(i, hash(seed))))
+    end
+
+    return with_recruitment, without_recruitment
 end
 
 """
@@ -623,7 +699,11 @@ end
 
 Take a single end-of-trial snapshot of `res`'s final population (as opposed to
 [`create_tracking_callback`](@ref)'s per-iteration accumulation across the whole
-run), returning the best `n_best` candidates below `fitness_threshold`.
+run), returning the best `n_best` distinct candidates below `fitness_threshold`.
+
+Only distinct parameter sets are returned. A converged population can hold many identical
+copies of one individual, and with a deterministic objective each copy has the same
+fitness; keeping them would add duplicate members to the ensemble.
 
 Falls back to a `(fitness, individuals)` reconstruction for optimizer methods whose
 `population(res)` does not expose `.fitness`/`.individuals` directly (mirrors the
@@ -638,7 +718,9 @@ function harvest_final_population(res, fitness_threshold::Float64; n_best::Int=2
     end
 
     below = findall(f -> f < fitness_threshold, fits)
-    keep = below[partialsortperm(fits[below], 1:min(n_best, length(below)))]
+    below = below[sortperm(fits[below])]
+    below = below[unique(i -> indivs[:, below[i]], eachindex(below))]
+    keep = below[1:min(n_best, length(below))]
 
     return [indivs[:, i] for i in keep], fits[keep]
 end
@@ -1170,7 +1252,17 @@ function plot_calibration_results(
     group_legend_elements = []
     group_legend_labels = String[]
 
-    FGROUP_COLOR = Makie.distinguishable_colors(8)[3:end]
+    # Okabe-Ito colorblind-safe palette, paired with distinct linestyles/markers so
+    # groups remain distinguishable in grayscale and under CVD simulation.
+    FGROUP_COLOR = [
+        "#E69F00",  # orange       - Tabular Acropora
+        "#D55E00",  # vermillion   - Corymbose Acropora
+        "#56B4E9",  # sky blue     - branching non-Acropora
+        "#009E73",  # green        - Small massives
+        "#0072B2",  # blue         - Large massives
+    ]
+    FGROUP_LINESTYLE = [:solid, :dash, :dot, :dashdot, :dashdotdot]
+    FGROUP_MARKER = [:circle, :rect, :utriangle, :diamond, :xcross]
     FLABELS = [
         "Tabular Acropora", "Corymbose Acropora",
         "branching non-Acropora", "Small massives", "Large massives"
@@ -1200,13 +1292,19 @@ function plot_calibration_results(
                 color=(FGROUP_COLOR[grp], 0.3)
             )
 
-            # Plot mean line
-            p_grp = lines!(
+            # Plot mean line with distinct linestyle/marker for colorblind accessibility
+            p_grp = scatterlines!(
                 ax2,
                 sim_timeframe,
                 grp_mean;
                 color=FGROUP_COLOR[grp],
-                linewidth=2
+                linestyle=FGROUP_LINESTYLE[grp],
+                linewidth=2.5,
+                marker=FGROUP_MARKER[grp],
+                markersize=14,
+                markercolor=FGROUP_COLOR[grp],
+                strokewidth=1,
+                strokecolor=:white
             )
 
             # `band!` does not support datetimes at this stage so we hide the xtick
@@ -1219,12 +1317,18 @@ function plot_calibration_results(
     else
         # Plot only best fit lines (no ensemble)
         for grp in n_grps:-1:1  # Reverse order for better layering
-            p_grp = lines!(
+            p_grp = scatterlines!(
                 ax2,
                 sim_timeframe,
                 group_cover_best[:, grp];
                 color=FGROUP_COLOR[grp],
-                linewidth=2
+                linestyle=FGROUP_LINESTYLE[grp],
+                linewidth=2.5,
+                marker=FGROUP_MARKER[grp],
+                markersize=14,
+                markercolor=FGROUP_COLOR[grp],
+                strokewidth=1,
+                strokecolor=:white
             )
             push!(group_legend_elements, p_grp)
             push!(group_legend_labels, FLABELS[grp])
@@ -1271,6 +1375,147 @@ function plot_calibration_results(
 
     save(output_file, f; px_per_unit=DPI)
     @info "Plot saved to $(output_file)"
+
+    return f
+end
+
+# ── Recruitment temporal sensitivity figures ──────────────────────────────────
+
+"""Integer year ticks: every year for short series, otherwise Makie's default spacing."""
+year_ticks(years) = length(years) <= 10 ? collect(years) : Makie.automatic
+
+"""
+Mark each disturbance year with a dashed red line, labelled at `ytop` when `label` is set.
+`label_side` places the label to the `:right` or `:left` of the line.
+"""
+function mark_disturbances!(
+    ax, disturbance_years, label::String, ytop; label_color=(:red, 0.8), label_side=:right
+)
+    halign, dx = label_side == :right ? (:left, 4) : (:right, -4)
+    for yr in disturbance_years
+        vlines!(ax, yr; color=(:red, 0.6), linewidth=1.5, linestyle=:dash)
+        isempty(label) && continue
+        text!(
+            ax, yr, ytop; text=label, align=(halign, :top), offset=(dx, -2), fontsize=12,
+            color=label_color
+        )
+    end
+end
+
+"""
+    plot_recruitment_trajectories(years, with_recruitment, without_recruitment;
+                                  band_quantiles=(0.25, 0.75), disturbance_years=Float64[],
+                                  disturbance_label="", title="")
+
+Two panels: (A) total coral cover with and without recruitment, (B) the difference
+(recruitment-attributable cover). Lines are the mean across samples and bands span
+`band_quantiles` (interquartile range by default). Inputs are `n_samples × n_years` cover
+proportions (as returned by `recruitment_paired_runs`).
+"""
+function plot_recruitment_trajectories(
+    years::AbstractVector,
+    with_recruitment::AbstractMatrix,
+    without_recruitment::AbstractMatrix;
+    band_quantiles::Tuple{Float64,Float64}=(0.25, 0.75),
+    disturbance_years=Float64[],
+    disturbance_label::String="",
+    title::String=""
+)
+    pct(Y) = 100 .* Y
+    band(Y, p) = [quantile(pct(Y[:, t]), p) for t in axes(Y, 2)]
+    mean_line(Y) = vec(mean(pct(Y); dims=1))
+    q_lo, q_hi = band_quantiles
+
+    colors = Makie.wong_colors()
+    f = Figure(; size=(1400, 520))
+    Label(f[0, 1:2], title; fontsize=20, font=:bold, tellwidth=false)
+
+    ax_cover = Axis(f[1, 1]; xlabel="Year", ylabel="Coral cover (%)", title="(A) Total cover", xticks=year_ticks(years))
+    for (Y, label, col) in [
+        (with_recruitment, "With recruitment", colors[1]),
+        (without_recruitment, "Without recruitment", colors[2])
+    ]
+        band!(ax_cover, years, band(Y, q_lo), band(Y, q_hi); color=(col, 0.2))
+        lines!(ax_cover, years, mean_line(Y); color=col, linewidth=2.5, label=label)
+    end
+    axislegend(ax_cover; position=:lt, framevisible=false)
+
+    diff = with_recruitment .- without_recruitment
+    ax_diff = Axis(
+        f[1, 2]; xlabel="Year", ylabel="Cover difference (percentage points)",
+        title="(B) Recruitment-attributable cover (with − without)",
+        xticks=year_ticks(years)
+    )
+    band!(ax_diff, years, band(diff, q_lo), band(diff, q_hi); color=(colors[3], 0.2))
+    lines!(ax_diff, years, mean_line(diff); color=colors[3], linewidth=2.5)
+
+    ytop_cover = maximum(max(maximum(band(Y, q_hi)), maximum(mean_line(Y)))
+        for Y in (with_recruitment, without_recruitment))
+    ytop_diff = max(maximum(band(diff, q_hi)), maximum(mean_line(diff)))
+    mark_disturbances!(ax_cover, disturbance_years, disturbance_label, ytop_cover)
+    mark_disturbances!(ax_diff, disturbance_years, disturbance_label, ytop_diff)
+
+    return f
+end
+
+"""
+    plot_recruitment_temporal_pawn(pawn_cube; scenarios=[:with, :without, :difference],
+                                   disturbance_years=Float64[], disturbance_label="", title="")
+
+Year × parameter heatmaps of dummy-normalized PAWN for each of `scenarios` in `pawn_cube`
+(`factors × year × scenario`, scenarios `:with`, `:without`, `:difference`), one panel per
+scenario. Rows are ordered by mean PAWN in the first scenario shown, and all panels share one
+color scale; values at or below zero (not above the dummy) share the lowest color. Panels are
+lettered only when more than one is shown (e.g. `scenarios=[:difference]` for a standalone
+figure). `disturbance_label`, if set, is shown in the first panel only.
+"""
+function plot_recruitment_temporal_pawn(
+    pawn_cube::AbstractDimArray;
+    scenarios::Vector{Symbol}=[:with, :without, :difference],
+    disturbance_years=Float64[],
+    disturbance_label::String="",
+    title::String=""
+)
+    factor_names = string.(collect(dims(pawn_cube, :factors)))
+    years = collect(dims(pawn_cube, :year))
+    n_factors = length(factor_names)
+    n_panels = length(scenarios)
+
+    shown = [parent(pawn_cube[scenario=At(s)]) for s in scenarios]
+    row_order = sortperm(vec(mean(first(shown); dims=2)); rev=true)
+    max_val = max(0.1, maximum(maximum, shown))
+
+    panel_names = Dict(
+        :with => "With recruitment",
+        :without => "Without recruitment",
+        :difference => "Recruitment-attributable (with − without)"
+    )
+
+    f = Figure(; size=(150 + 580 * n_panels, max(450, 32 * n_factors)))
+    Label(f[0, 1:n_panels], title; fontsize=20, font=:bold, tellwidth=false)
+
+    hm = nothing
+    for (col, (scenario, vals)) in enumerate(zip(scenarios, shown))
+        panel_title = n_panels > 1 ? "($('A' + col - 1)) $(panel_names[scenario])" :
+            panel_names[scenario]
+        ax = Axis(
+            f[1, col];
+            xlabel="Year",
+            title=panel_title,
+            xticks=year_ticks(years),
+            yticks=(1:n_factors, factor_names[row_order]),
+            yticklabelsvisible=col == 1
+        )
+        hm = heatmap!(
+            ax, years, 1:n_factors, vals[row_order, :]';
+            colormap=:viridis, colorrange=(0.0, max_val)
+        )
+        mark_disturbances!(
+            ax, disturbance_years, col == 1 ? disturbance_label : "", n_factors + 0.5;
+            label_color=:white, label_side=:left
+        )
+    end
+    Colorbar(f[1, n_panels + 1], hm; label="PAWN index (relative to dummy)", width=14)
 
     return f
 end

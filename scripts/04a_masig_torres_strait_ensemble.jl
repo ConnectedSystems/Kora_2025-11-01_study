@@ -297,7 +297,9 @@ end
 
         optim_best = if length(tracked_candidates) > 0
             best_idx = argmin(collect(tracked_fitnesses))
-            collect(tracked_candidates)[best_idx]
+            # `copy`: otherwise this aliases a tracked candidate, which the loop below
+            # would then transform a second time.
+            copy(collect(tracked_candidates)[best_idx])
         else
             best_candidate(opt_results[1])
         end
@@ -493,10 +495,13 @@ serialize(output_path, calibration_output)
 ensemble_params = hcat(calibration_output.tracked_candidates...)
 ensemble_fitnesses = calibration_output.tracked_fitnesses
 
-# Save candidates as initial guess for the next calibration round
+# Save candidates as initial guess for the next calibration round. The optimizer works in
+# latent space, so store the latent equivalent of the realized proportions.
+initial_guess = copy(ensemble_params)
+initial_guess[2:6, :] .= dirichlet_to_latent(initial_guess[2:6, :])
 save_result(
     joinpath(ensemble_data_dir, "$(reef_config.reef_id)_initial_guess.h5"),
-    ensemble_params
+    initial_guess
 )
 
 n_params = size(ensemble_params, 1)

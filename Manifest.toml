@@ -2,7 +2,7 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "5b32f055b8e53b70d12e305849db142e2cdf3f69"
+project_hash = "5c58cf1944cdfcfee011fad26b822faeb27e999b"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -1222,6 +1222,18 @@ version = "1.14.3"
     [deps.JSON3.weakdeps]
     ArrowTypes = "31f734f8-188a-4ce0-8406-c8a06bd891cd"
 
+[[deps.JlrsCore]]
+deps = ["JlrsLedger_jll", "Libdl"]
+git-tree-sha1 = "a6499a76758d0027164212feb6f29020bc32af0d"
+uuid = "29be08bc-e5fd-4da2-bbc1-72011c6ea2c9"
+version = "0.7.0"
+
+[[deps.JlrsLedger_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "470dc485de38ddc92e395c37d47755e5b3cb580b"
+uuid = "946c7259-7191-581b-9320-f4a77977c88e"
+version = "0.2.0+0"
+
 [[deps.JpegTurbo]]
 deps = ["CEnum", "FileIO", "ImageCore", "JpegTurbo_jll", "TOML"]
 git-tree-sha1 = "9496de8fb52c224a2e3f9ff403947674517317d9"
@@ -1258,22 +1270,27 @@ uuid = "5ab0869b-81aa-558d-bb23-cbf5423bbe9b"
 version = "0.6.12"
 
 [[deps.Kora]]
-deps = ["Bootstrap", "CSV", "CurveFit", "DataFrames", "Dates", "DimensionalData", "DiskArrays", "Distributions", "Interpolations", "JSON", "KernelDensity", "Missings", "OrderedCollections", "Polynomials", "PrecompileSignatures", "PrecompileTools", "Printf", "Random", "Statistics", "StatsBase", "StatsFuns", "WasmTarget"]
-path = "../.."
+deps = ["Bootstrap", "CSV", "CurveFit", "DataFrames", "Dates", "DimensionalData", "DiskArrays", "Distributions", "Interpolations", "JSON", "JlrsCore", "KernelDensity", "Missings", "OrderedCollections", "Polynomials", "PrecompileSignatures", "PrecompileTools", "Printf", "Random", "Statistics", "StatsBase", "StatsFuns"]
+git-tree-sha1 = "c9a336304f830b91b74bcab61c17a6f1fec582c1"
 uuid = "63f594c6-e77c-4cfd-819e-df68f57e9897"
-version = "1.2.0"
+version = "1.4.4"
 
     [deps.Kora.extensions]
     ArrowExt = "Arrow"
     MakieExt = "Makie"
+    OxygenExt = ["Oxygen", "HTTP", "UUIDs", "NCDatasets"]
     Parquet2Ext = "Parquet2"
     UnicodePlotsExt = ["UnicodePlots", "Term"]
 
     [deps.Kora.weakdeps]
     Arrow = "69666777-d1a9-59fb-9406-91d4454c9d45"
+    HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
     Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+    NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
+    Oxygen = "df9a0d86-3283-4920-82dc-4555fc0d1d8b"
     Parquet2 = "98572fba-bba0-415d-956f-fa77e587d26d"
     Term = "22787eb5-b846-44ae-b979-8e399b8463ab"
+    UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
     UnicodePlots = "b8865327-cd53-5732-bb35-84acbb429228"
 
 [[deps.LAME_jll]]
@@ -2445,37 +2462,6 @@ version = "1.28.0"
 git-tree-sha1 = "c63023bd84f46f9df786c90180d4f79dbfdafa2a"
 uuid = "c4a57d5a-5b31-53a6-b365-19f8c011fbd6"
 version = "1.0.9"
-
-[[deps.WasmTarget]]
-deps = ["JSON", "PrecompileTools"]
-git-tree-sha1 = "2ada2dcd43e34a9b8db8193957d8cc92432ed39a"
-repo-rev = "main"
-repo-url = "https://github.com/GroupTherapyOrg/WasmTarget.jl"
-uuid = "9f3a1415-1112-405b-ae89-c61daf9872bd"
-version = "0.4.0"
-
-    [deps.WasmTarget.extensions]
-    WasmTargetDatesExt = "Dates"
-    WasmTargetForwardDiffExt = "ForwardDiff"
-    WasmTargetLinearAlgebraExt = "LinearAlgebra"
-    WasmTargetRandomExt = ["Random", "SHA"]
-    WasmTargetSimpleDiffEqExt = ["SimpleDiffEq", "SciMLBase", "DiffEqBase", "LinearAlgebra"]
-    WasmTargetSparseArraysExt = "SparseArrays"
-    WasmTargetStaticArraysExt = "StaticArrays"
-    WasmTargetStatisticsExt = "Statistics"
-
-    [deps.WasmTarget.weakdeps]
-    Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
-    DiffEqBase = "2b5f629d-d688-5b77-993f-72d75c75574e"
-    ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
-    LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-    Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
-    SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
-    SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
-    SimpleDiffEq = "05bca326-078c-5bf0-a5bf-ce7c7982d7fd"
-    SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-    StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
-    Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
 [[deps.WeakRefStrings]]
 deps = ["DataAPI", "InlineStrings", "Parsers"]
