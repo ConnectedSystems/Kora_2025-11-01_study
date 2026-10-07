@@ -1,0 +1,6 @@
+Group,Model
+acro_table,0.797599 + 2.31944*x
+acro_corym,5.68096 - 0.968424*x
+corym_non_acro,7.66845 - 2.62904*x
+small_massive,2.0439 - 0.644994*x
+large_massive,0.891937 - 0.029358*x

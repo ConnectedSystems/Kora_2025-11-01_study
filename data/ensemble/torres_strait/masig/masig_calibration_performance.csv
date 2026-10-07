@@ -1,0 +1,6 @@
+metric,value
+rmse,0.3442
+pearson,0.5858
+kendall,0.3333
+bias_beta,0.004
+variability_alpha,0.0364

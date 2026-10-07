@@ -1,0 +1,9 @@
+statistic,value
+n,250.0
+min,0.1203
+q25,0.1651
+median,0.1742
+q75,0.1826
+max,0.1924
+mean,0.172
+std,0.0146

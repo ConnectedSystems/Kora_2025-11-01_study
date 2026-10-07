@@ -1,0 +1,8 @@
+Param1,Param2,Correlation
+Prop: Cor non-Acro,Size μ: Cor non-Acro,-0.588
+Prop: Sm Mass,Size μ: Sm Mass,-0.676
+Prop: Lg Mass,Size σ: Lg Mass,-0.676
+Size μ: Tab Acro,Size σ: Tab Acro,-0.823
+Size μ: Cor Acro,Scaler: Tab Acro,0.523
+Size σ: Tab Acro,Scaler: Tab Acro,0.528
+External Recruitment,Self-seeding,-0.823

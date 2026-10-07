@@ -1,0 +1,8 @@
+Param1,Param2,Correlation
+Density,Size μ: Lg Mass,-0.817
+Prop: Cor Acro,Prop: Lg Mass,-0.591
+Prop: Cor Acro,Size μ: Cor Acro,-0.572
+Prop: Cor non-Acro,Prop: Lg Mass,-0.638
+Prop: Sm Mass,Prop: Lg Mass,-0.736
+Size μ: Tab Acro,Size σ: Tab Acro,-0.663
+External Recruitment,Self-seeding,-0.554

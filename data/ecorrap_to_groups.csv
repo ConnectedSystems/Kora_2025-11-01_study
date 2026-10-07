@@ -1,0 +1,42 @@
+Dataset,Code,Updated.name,Cscape_group
+juv_quadrat,Acropora,,acro_table and acro_corym
+juv_quadrat,Porites,,large_massive
+juv_quadrat,Seriatopora,,corym_non_acro
+juv_quadrat,Stylophora,,corym_non_acro
+juv_quadrat,Favites,,small_massive
+juv_quadrat,Faviid,,small_massive
+juv_quadrat,Goniastrea,,small_massive
+juv_quadrat,Favia,,small_massive
+juv_quadrat,Pocillopora,,corym_non_acro
+juv_quadrat,Mussid,,small_massive
+juv_quadrat,Dipsastraea,,small_massive
+juv_quadrat,Pavona,,small_massive
+juv_quadrat,Montastrea,,small_massive
+juv_quadrat,Lobophyllia,,small_massive
+juv_quadrat,Leptastrea,,small_massive
+juv_quadrat,Platygyra,,small_massive
+photogrammetry,Acor,Acropora corymbose,acro_corym
+photogrammetry,Pmas,Porites massive,large_massive
+photogrammetry,Atab,Acropora table,acro_table
+photogrammetry,Spis,Stylophora pistillata,corym_non_acro
+photogrammetry,Adgt,Acropora digitata,acro_corym
+photogrammetry,Pver,Pocillopora verrucosa,corym_non_acro
+photogrammetry,Pdam,Pocillopora damicornis,corym_non_acro
+photogrammetry,Plat,Platygyra,small_massive
+photogrammetry,Shys,Seriatopora hystrix,corym_non_acro
+photogrammetry,Ahya,Acropora hyacinthus,acro_table
+photogrammetry,Gedw,Goniastrea edwardsi,small_massive
+photogrammetry,Aten,Acropora tenuis,acro_corym
+photogrammetry,Acyt,Acropora cytherea,acro_table
+photogrammetry,Ahum,Acropora humilis,acro_corym
+photogrammetry,Amil,Acropora millepora,acro_corym
+photogrammetry,Lhem,Lobophyllia hemprichii,small_massive
+photogrammetry,Pdae,Platygyra daedalea,small_massive
+photogrammetry,Lphr,Leptoria phrygia,small_massive
+photogrammetry,Lcor,Lobophyllia corymbosa,small_massive
+photogrammetry,Aval,Acropora valida,acro_corym
+photogrammetry,Fabd,Favites abdita,small_massive
+photogrammetry,Acla,Acropora clathrata,acro_table
+photogrammetry,Asol,Acropora solitaryensis,acro_table
+photogrammetry,Adig,Acropora digitifera,acro_corym
+photogrammetry,Anas,Acropora nasuta,acro_corym
